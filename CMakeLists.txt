@@ -11,9 +11,15 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
-# patch 스크립트도 설치 (필요 시 사용)
 install(PROGRAMS
   scripts/patch_urdf.py
+  scripts/ready_posture.py
+  scripts/dynamic_walker.py
+  scripts/axis_tester.py
+  scripts/op3_walker.py
+  scripts/transform_bike.py
+  scripts/revert_bike.py
+  scripts/bike_teleop.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

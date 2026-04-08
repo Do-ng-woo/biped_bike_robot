@@ -3,22 +3,22 @@
      Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
      For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
 <robot
-  name="biped_bike_robot_ver2">
+  name="biped_bike_robot_ver3">
   <link
     name="base_link">
     <inertial>
       <origin
-        xyz="-0.037095 -0.03743 0.018098"
+        xyz="-0.027467 -0.076798 0.018551"
         rpy="0 0 0" />
       <mass
-        value="0.14124" />
+        value="0.20217" />
       <inertia
-        ixx="5.6621E-05"
-        ixy="-4.4104E-09"
-        ixz="2.459E-07"
-        iyy="6.6472E-05"
-        iyz="-5.2338E-09"
-        izz="0.00010675" />
+        ixx="0.00013508"
+        ixy="4.4049E-09"
+        ixz="-5.1886E-08"
+        iyy="6.1532E-05"
+        iyz="-1.5699E-08"
+        izz="0.00016846" />
     </inertial>
     <visual>
       <origin
@@ -45,20 +45,20 @@
     </collision>
   </link>
   <link
-    name="l_hip_roll_joint">
+    name="l_hip_yaw">
     <inertial>
       <origin
-        xyz="-0.012002 -0.00023467 0.040506"
+        xyz="-0.014647 6.7734E-10 -0.01155"
         rpy="0 0 0" />
       <mass
-        value="0.093878" />
+        value="0.027291" />
       <inertia
-        ixx="1.3975E-05"
-        ixy="-2.5117E-07"
-        ixz="2.5109E-07"
-        iyy="2.211E-05"
-        iyz="-1.0471E-08"
-        izz="2.3229E-05" />
+        ixx="4.6401E-06"
+        ixy="1.4965E-12"
+        ixz="-2.8344E-07"
+        iyy="3.6999E-05"
+        iyz="1.3108E-14"
+        izz="3.6652E-05" />
     </inertial>
     <visual>
       <origin
@@ -66,7 +66,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_hip_roll_joint.STL" />
+          filename="package://biped_bike_robot/meshes/l_hip_yaw.STL" />
       </geometry>
       <material
         name="">
@@ -80,45 +80,48 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_hip_roll_joint.STL" />
+          filename="package://biped_bike_robot/meshes/l_hip_yaw.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="l_hip_roll_joint_jnt_jnt"
+    name="l_hip_yaw_jnt"
 
     type="revolute">
     <origin
-      xyz="-0.079 -0.006 -0.028"
-      rpy="0 -1.5708 3.14159" />
+      xyz="-0.01525 -0.01425 0.0026"
+      rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
-      link="l_hip_roll_joint" />
+      link="l_hip_yaw" />
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="l_hip_pitch_joint">
+    name="l_hip_roll">
     <inertial>
       <origin
-        xyz="3.4694E-17 0.028 -0.0209"
+        xyz="-0.01217 -0.00018948 0.046417"
         rpy="0 0 0" />
       <mass
-        value="0.0057449" />
+        value="0.11708" />
       <inertia
-        ixx="1.9559E-06"
-        ixy="1.0839E-23"
-        ixz="-4.9933E-22"
-        iyy="1.8089E-06"
-        iyz="-6.2971E-22"
-        izz="7.604E-07" />
+        ixx="2.0097E-05"
+        ixy="-2.5141E-07"
+        ixz="2.5107E-07"
+        iyy="2.6451E-05"
+        iyz="-1.0511E-08"
+        izz="3.2945E-05" />
     </inertial>
     <visual>
       <origin
@@ -126,7 +129,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_hip_pitch_joint.STL" />
+          filename="package://biped_bike_robot/meshes/l_hip_roll.STL" />
       </geometry>
       <material
         name="">
@@ -140,45 +143,111 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_hip_pitch_joint.STL" />
+          filename="package://biped_bike_robot/meshes/l_hip_roll.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="l_hip_pitch_joint_jnt_jnt"
+    name="l_hip_roll_jnt"
 
     type="revolute">
     <origin
-      xyz="-0.024 -0.0209 0.0574"
+      xyz="-0.0614 0 -0.0356"
+      rpy="0 -1.5708 3.14159" />
+    <parent
+      link="l_hip_yaw" />
+    <child
+      link="l_hip_roll" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="l_hip_pitch">
+    <inertial>
+      <origin
+        xyz="-3.9552E-15 0.0295 -0.0209"
+        rpy="0 0 0" />
+      <mass
+        value="0.016365" />
+      <inertia
+        ixx="1.2215E-05"
+        ixy="3.2958E-23"
+        ixz="-1.8499E-20"
+        iyy="9.3246E-06"
+        iyz="-3.8495E-21"
+        izz="4.1327E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://biped_bike_robot/meshes/l_hip_pitch.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://biped_bike_robot/meshes/l_hip_pitch.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+
+    name="l_hip_pitch_jnt"
+
+    type="revolute">
+    <origin
+      xyz="-0.024 -0.0209 0.0614"
       rpy="1.5708 -1.5708 0" />
     <parent
-      link="l_hip_roll_joint" />
+      link="l_hip_roll" />
     <child
-      link="l_hip_pitch_joint" />
+      link="l_hip_pitch" />
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="l_knee_joint">
+    name="l_knee_pitch">
     <inertial>
       <origin
-        xyz="0.018642 0.013988 -0.020447"
+        xyz="0.020267 0.018916 -0.020589"
         rpy="0 0 0" />
       <mass
-        value="0.09941" />
+        value="0.14474" />
       <inertia
-        ixx="2.7075E-05"
-        ixy="4.354E-07"
-        ixz="-3.2147E-15"
-        iyy="1.6372E-05"
-        iyz="1.3798E-14"
-        izz="2.3188E-05" />
+        ixx="5.3362E-05"
+        ixy="2.1297E-06"
+        ixz="-2.4176E-13"
+        iyy="3.7532E-05"
+        iyz="1.5663E-12"
+        izz="3.6388E-05" />
     </inertial>
     <visual>
       <origin
@@ -186,7 +255,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_knee_joint.STL" />
+          filename="package://biped_bike_robot/meshes/l_knee_pitch.STL" />
       </geometry>
       <material
         name="">
@@ -200,45 +269,48 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_knee_joint.STL" />
+          filename="package://biped_bike_robot/meshes/l_knee_pitch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="l_knee_joint_jnt_jnt"
+    name="l_knee_pitch_jnt"
 
     type="revolute">
     <origin
-      xyz="0 0.056 0"
+      xyz="0 0.059 0"
       rpy="0 0 0" />
     <parent
-      link="l_hip_pitch_joint" />
+      link="l_hip_pitch" />
     <child
-      link="l_knee_joint" />
+      link="l_knee_pitch" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="l_ankle_joint">
+    name="l_ankle_pitch">
     <inertial>
       <origin
-        xyz="-0.016904 0.011696 -0.020666"
+        xyz="-0.014991 0.011589 -0.020713"
         rpy="0 0 0" />
       <mass
-        value="0.093878" />
+        value="0.11708" />
       <inertia
-        ixx="2.3229E-05"
+        ixx="3.2945E-05"
         ixy="-2.5109E-07"
-        ixz="-1.9314E-11"
-        iyy="1.3975E-05"
-        iyz="2.6017E-07"
-        izz="2.2111E-05" />
+        ixz="-2.0537E-11"
+        iyy="2.0097E-05"
+        iyz="2.6018E-07"
+        izz="2.6451E-05" />
     </inertial>
     <visual>
       <origin
@@ -246,7 +318,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_ankle_joint.STL" />
+          filename="package://biped_bike_robot/meshes/l_ankle_pitch.STL" />
       </geometry>
       <material
         name="">
@@ -260,104 +332,110 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_ankle_joint.STL" />
+          filename="package://biped_bike_robot/meshes/l_ankle_pitch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="l_ankle_joint_jnt_jnt"
+    name="l_ankle_pitch_jnt"
 
     type="revolute">
     <origin
-      xyz="-0.003 0.08325 0"
+      xyz="0 0.08775 0"
       rpy="0 0 0" />
     <parent
-      link="l_knee_joint" />
+      link="l_knee_pitch" />
     <child
-      link="l_ankle_joint" />
-    <axis
-      xyz="0 0 1" />
-    <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
-  </joint>
-  <link
-    name="l_foot_link">
-    <inertial>
-      <origin
-        xyz="-0.047181 9.9226E-16 0.052873"
-        rpy="0 0 0" />
-      <mass
-        value="0.015899" />
-      <inertia
-        ixx="2.3253E-05"
-        ixy="-9.8705E-20"
-        ixz="1.2328E-06"
-        iyy="2.3157E-05"
-        iyz="-2.454E-19"
-        izz="6.465E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://biped_bike_robot/meshes/l_foot_link.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.75294 0.75294 0.75294 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://biped_bike_robot/meshes/l_foot_link.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-
-    name="l_foot_link_jnt_jnt"
-
-    type="revolute">
-    <origin
-      xyz="-0.0574 0 -0.0209"
-      rpy="-1.5708 0 -1.5708" />
-    <parent
-      link="l_ankle_joint" />
-    <child
-      link="l_foot_link" />
+      link="l_ankle_pitch" />
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="l_knee_wheel">
+    name="l_foot_roll">
     <inertial>
       <origin
-        xyz="9.3908E-13 2.8935E-13 0.0055204"
+        xyz="-0.051554 -2.0817E-16 0.061016"
+        rpy="0 0 0" />
+      <mass
+        value="0.073461" />
+      <inertia
+        ixx="0.00014716"
+        ixy="3.6906E-20"
+        ixz="5.6269E-06"
+        iyy="0.00013683"
+        iyz="-2.9536E-19"
+        izz="3.4695E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://biped_bike_robot/meshes/l_foot_roll.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://biped_bike_robot/meshes/l_foot_roll.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+
+    name="l_foot_roll_jnt"
+
+    type="revolute">
+    <origin
+      xyz="-0.0614 0 -0.0209"
+      rpy="-1.5708 0 -1.5708" />
+    <parent
+      link="l_ankle_pitch" />
+    <child
+      link="l_foot_roll" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="l_knee_pitch_wheel">
+    <inertial>
+      <origin
+        xyz="9.0919E-13 -3.7224E-13 0.0055204"
         rpy="0 0 0" />
       <mass
         value="0.012433" />
       <inertia
         ixx="3.5443E-06"
-        ixy="1.8789E-12"
-        ixz="-1.6557E-17"
+        ixy="3.7636E-12"
+        ixz="-1.6E-17"
         iyy="3.5443E-06"
-        iyz="-5.0496E-18"
+        iyz="6.6047E-18"
         izz="6.6204E-06" />
     </inertial>
     <visual>
@@ -366,7 +444,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_knee_wheel.STL" />
+          filename="package://biped_bike_robot/meshes/l_knee_pitch_wheel.STL" />
       </geometry>
       <material
         name="">
@@ -380,40 +458,46 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/l_knee_wheel.STL" />
+          filename="package://biped_bike_robot/meshes/l_knee_pitch_wheel.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="l_knee_wheel_jnt_jnt"
+    name="l_knee_pitch_wheel_jnt"
 
     type="continuous">
     <origin
-      xyz="0.039 0.024 0"
+      xyz="0.047 0.024 0"
       rpy="0 0 0" />
     <parent
-      link="l_knee_joint" />
+      link="l_knee_pitch" />
     <child
-      link="l_knee_wheel" />
+      link="l_knee_pitch_wheel" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 -1" />
+    <limit
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="r_hip_roll_joint">
+    name="r_hip_yaw">
     <inertial>
       <origin
-        xyz="-0.012003 0.00024646 0.040496"
+        xyz="-0.014647 6.7734E-10 -0.01155"
         rpy="0 0 0" />
       <mass
-        value="0.093878" />
+        value="0.027291" />
       <inertia
-        ixx="1.3974E-05"
-        ixy="2.6025E-07"
-        ixz="2.5989E-07"
-        iyy="2.2111E-05"
-        iyz="-1.0423E-08"
-        izz="2.3229E-05" />
+        ixx="4.6401E-06"
+        ixy="1.4965E-12"
+        ixz="-2.8344E-07"
+        iyy="3.6999E-05"
+        iyz="1.3108E-14"
+        izz="3.6652E-05" />
     </inertial>
     <visual>
       <origin
@@ -421,7 +505,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_hip_roll_joint.STL" />
+          filename="package://biped_bike_robot/meshes/r_hip_yaw.STL" />
       </geometry>
       <material
         name="">
@@ -435,45 +519,111 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_hip_roll_joint.STL" />
+          filename="package://biped_bike_robot/meshes/r_hip_yaw.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="r_hip_roll_joint_jnt_jnt"
+    name="r_hip_yaw_jnt"
 
     type="revolute">
     <origin
-      xyz="-0.079 -0.069 -0.028"
+      xyz="-0.01525 -0.13925 0.0026"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="r_hip_yaw" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="r_hip_roll">
+    <inertial>
+      <origin
+        xyz="-0.01217 -0.00018948 0.046417"
+        rpy="0 0 0" />
+      <mass
+        value="0.11708" />
+      <inertia
+        ixx="2.0097E-05"
+        ixy="-2.5141E-07"
+        ixz="2.5107E-07"
+        iyy="2.6451E-05"
+        iyz="-1.0511E-08"
+        izz="3.2945E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://biped_bike_robot/meshes/r_hip_roll.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://biped_bike_robot/meshes/r_hip_roll.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+
+    name="r_hip_roll_jnt"
+
+    type="revolute">
+    <origin
+      xyz="-0.0614 0 -0.0356"
       rpy="0 -1.5708 3.14159" />
     <parent
-      link="base_link" />
+      link="r_hip_yaw" />
     <child
-      link="r_hip_roll_joint" />
+      link="r_hip_roll" />
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="r_hip_pitch_link">
+    name="r_hip_pitch">
     <inertial>
       <origin
-        xyz="-3.8164E-17 0.028 0.0209"
+        xyz="-2.7756E-17 0.0295 -0.0209"
         rpy="0 0 0" />
       <mass
-        value="0.0057449" />
+        value="0.016365" />
       <inertia
-        ixx="1.9559E-06"
-        ixy="-2.211E-23"
-        ixz="9.525E-22"
-        iyy="1.8089E-06"
-        iyz="-7.1531E-22"
-        izz="7.604E-07" />
+        ixx="1.2215E-05"
+        ixy="-1.8374E-22"
+        ixz="-2.029E-20"
+        iyy="9.3246E-06"
+        iyz="6.3686E-23"
+        izz="4.1327E-06" />
     </inertial>
     <visual>
       <origin
@@ -481,7 +631,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_hip_pitch_link.STL" />
+          filename="package://biped_bike_robot/meshes/r_hip_pitch.STL" />
       </geometry>
       <material
         name="">
@@ -495,45 +645,48 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_hip_pitch_link.STL" />
+          filename="package://biped_bike_robot/meshes/r_hip_pitch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="r_hip_pitch_link_jnt_jnt"
+    name="r_hip_pitch_jnt"
 
     type="revolute">
     <origin
-      xyz="-0.024 0.0209 0.0574"
+      xyz="-0.024 -0.0209 0.0614"
       rpy="1.5708 -1.5708 0" />
     <parent
-      link="r_hip_roll_joint" />
+      link="r_hip_roll" />
     <child
-      link="r_hip_pitch_link" />
+      link="r_hip_pitch" />
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="r_knee_joint">
+    name="r_knee_pitch">
     <inertial>
       <origin
-        xyz="0.018642 0.013988 0.020447"
+        xyz="0.020267 0.018916 -0.020589"
         rpy="0 0 0" />
       <mass
-        value="0.09941" />
+        value="0.14474" />
       <inertia
-        ixx="2.7075E-05"
-        ixy="4.1777E-07"
-        ixz="-3.2147E-15"
-        iyy="1.6372E-05"
-        iyz="1.3798E-14"
-        izz="2.3188E-05" />
+        ixx="5.3362E-05"
+        ixy="2.1297E-06"
+        ixz="5.4324E-13"
+        iyy="3.7532E-05"
+        iyz="1.6648E-12"
+        izz="3.6388E-05" />
     </inertial>
     <visual>
       <origin
@@ -541,7 +694,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_knee_joint.STL" />
+          filename="package://biped_bike_robot/meshes/r_knee_pitch.STL" />
       </geometry>
       <material
         name="">
@@ -555,45 +708,48 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_knee_joint.STL" />
+          filename="package://biped_bike_robot/meshes/r_knee_pitch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="r_knee_joint_jnt_jnt"
+    name="r_knee_pitch_jnt"
 
     type="revolute">
     <origin
-      xyz="0 0.056 0"
+      xyz="0 0.059 0"
       rpy="0 0 0" />
     <parent
-      link="r_hip_pitch_link" />
+      link="r_hip_pitch" />
     <child
-      link="r_knee_joint" />
+      link="r_knee_pitch" />
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="r_ankle_joint">
+    name="r_ankle_pitch">
     <inertial>
       <origin
-        xyz="-0.016894 0.011696 0.020655"
+        xyz="-0.014991 0.011589 -0.020713"
         rpy="0 0 0" />
       <mass
-        value="0.093878" />
+        value="0.11708" />
       <inertia
-        ixx="2.3229E-05"
-        ixy="-2.5991E-07"
-        ixz="2.4204E-12"
-        iyy="1.3975E-05"
-        iyz="-2.5113E-07"
-        izz="2.211E-05" />
+        ixx="3.2945E-05"
+        ixy="-2.5109E-07"
+        ixz="-2.0537E-11"
+        iyy="2.0097E-05"
+        iyz="2.6018E-07"
+        izz="2.6451E-05" />
     </inertial>
     <visual>
       <origin
@@ -601,7 +757,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_ankle_joint.STL" />
+          filename="package://biped_bike_robot/meshes/r_ankle_pitch.STL" />
       </geometry>
       <material
         name="">
@@ -615,45 +771,48 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_ankle_joint.STL" />
+          filename="package://biped_bike_robot/meshes/r_ankle_pitch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="r_ankle_joint_jnt_jnt"
+    name="r_ankle_pitch_jnt"
 
     type="revolute">
     <origin
-      xyz="-0.003 0.08325 0"
+      xyz="0 0.08775 0"
       rpy="0 0 0" />
     <parent
-      link="r_knee_joint" />
+      link="r_knee_pitch" />
     <child
-      link="r_ankle_joint" />
+      link="r_ankle_pitch" />
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="r_foot_link">
+    name="r_foot_roll">
     <inertial>
       <origin
-        xyz="-0.047181 9.1593E-16 0.052873"
+        xyz="-0.051554 1.9429E-16 0.061016"
         rpy="0 0 0" />
       <mass
-        value="0.015899" />
+        value="0.073461" />
       <inertia
-        ixx="2.3253E-05"
-        ixy="-1.0797E-19"
-        ixz="1.2328E-06"
-        iyy="2.3157E-05"
-        iyz="-2.1922E-19"
-        izz="6.465E-06" />
+        ixx="0.00014716"
+        ixy="3.5112E-20"
+        ixz="5.6269E-06"
+        iyy="0.00013683"
+        iyz="-3.3103E-19"
+        izz="3.4695E-05" />
     </inertial>
     <visual>
       <origin
@@ -661,7 +820,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_foot_link.STL" />
+          filename="package://biped_bike_robot/meshes/r_foot_roll.STL" />
       </geometry>
       <material
         name="">
@@ -675,44 +834,47 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_foot_link.STL" />
+          filename="package://biped_bike_robot/meshes/r_foot_roll.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="r_foot_link_jnt_jnt"
+    name="r_foot_roll_jnt"
 
     type="revolute">
     <origin
-      xyz="-0.0574 0 0.0209"
+      xyz="-0.0614 0 -0.0209"
       rpy="-1.5708 0 -1.5708" />
     <parent
-      link="r_ankle_joint" />
+      link="r_ankle_pitch" />
     <child
-      link="r_foot_link" />
+      link="r_foot_roll" />
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="r_knee_wheel">
+    name="r_knee_pitch_wheel">
     <inertial>
       <origin
-        xyz="2.7235E-13 9.4441E-13 -0.0056204"
+        xyz="-4.2069E-13 8.8791E-13 -0.04642"
         rpy="0 0 0" />
       <mass
         value="0.012433" />
       <inertia
         ixx="3.5443E-06"
-        ixy="2.0025E-12"
-        ixz="4.7462E-18"
+        ixy="3.6164E-12"
+        ixz="-7.4582E-18"
         iyy="3.5443E-06"
-        iyz="1.6644E-17"
+        iyz="1.5622E-17"
         izz="6.6204E-06" />
     </inertial>
     <visual>
@@ -721,7 +883,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_knee_wheel.STL" />
+          filename="package://biped_bike_robot/meshes/r_knee_pitch_wheel.STL" />
       </geometry>
       <material
         name="">
@@ -735,40 +897,46 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/r_knee_wheel.STL" />
+          filename="package://biped_bike_robot/meshes/r_knee_pitch_wheel.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="r_knee_wheel_jnt_jnt"
+    name="r_knee_pitch_wheel_jnt"
 
     type="continuous">
     <origin
-      xyz="0.039 0.024 0"
+      xyz="0.047 0.024 0"
       rpy="0 0 0" />
     <parent
-      link="r_knee_joint" />
+      link="r_knee_pitch" />
     <child
-      link="r_knee_wheel" />
+      link="r_knee_pitch_wheel" />
     <axis
-      xyz="0 0 -1" />
+      xyz="0 0 1" />
+    <limit
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="waist_yaw_link">
+    name="arm_base_yaw">
     <inertial>
       <origin
-        xyz="-0.00017671 0.00042938 0.026916"
+        xyz="-0.00017614 0.00042799 0.026853"
         rpy="0 0 0" />
       <mass
-        value="0.052381" />
+        value="0.052551" />
       <inertia
-        ixx="1.202E-05"
+        ixx="1.204E-05"
         ixy="-5.2331E-09"
-        ixz="-4.4082E-09"
-        iyy="1.1556E-05"
+        ixz="-4.4078E-09"
+        iyy="1.1587E-05"
         iyz="-2.555E-07"
-        izz="8.5325E-06" />
+        izz="8.5755E-06" />
     </inertial>
     <visual>
       <origin
@@ -776,7 +944,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/waist_yaw_link.STL" />
+          filename="package://biped_bike_robot/meshes/arm_base_yaw.STL" />
       </geometry>
       <material
         name="">
@@ -790,45 +958,48 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/waist_yaw_link.STL" />
+          filename="package://biped_bike_robot/meshes/arm_base_yaw.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="waist_yaw_link_jnt_jnt"
+    name="arm_base_yaw_jnt"
 
     type="revolute">
     <origin
-      xyz="-0.02625 -0.0373 0.0547"
+      xyz="-0.01505 -0.07695 0.0444"
       rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
-      link="waist_yaw_link" />
+      link="arm_base_yaw" />
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="arm_link_1">
+    name="arm_shoulder_pitch">
     <inertial>
       <origin
-        xyz="-0.10005 -0.013801 -0.020362"
+        xyz="-0.09923 -0.013917 -0.020759"
         rpy="0 0 0" />
       <mass
-        value="0.092552" />
+        value="0.091736" />
       <inertia
-        ixx="2.3617E-05"
-        ixy="7.018E-07"
-        ixz="-4.7466E-09"
-        iyy="8.265E-05"
-        iyz="2.554E-07"
-        izz="7.7304E-05" />
+        ixx="2.3237E-05"
+        ixy="7.1574E-07"
+        ixz="-4.7034E-09"
+        iyy="8.3428E-05"
+        iyz="2.551E-07"
+        izz="7.7953E-05" />
     </inertial>
     <visual>
       <origin
@@ -836,7 +1007,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/arm_link_1.STL" />
+          filename="package://biped_bike_robot/meshes/arm_shoulder_pitch.STL" />
       </geometry>
       <material
         name="">
@@ -850,45 +1021,48 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/arm_link_1.STL" />
+          filename="package://biped_bike_robot/meshes/arm_shoulder_pitch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="arm_link_1_jnt_jnt"
+    name="arm_shoulder_pitch_jnt"
 
     type="revolute">
     <origin
       xyz="-0.0002 0.0209 0.04235"
       rpy="-1.5708 0 0" />
     <parent
-      link="waist_yaw_link" />
+      link="arm_base_yaw" />
     <child
-      link="arm_link_1" />
+      link="arm_shoulder_pitch" />
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="arm_link_2">
+    name="arm_elbow_pitch">
     <inertial>
       <origin
-        xyz="0.0973 0.00017481 -0.020956"
+        xyz="0.096914 0.0001791 -0.021106"
         rpy="0 0 0" />
       <mass
-        value="0.046121" />
+        value="0.046725" />
       <inertia
-        ixx="7.7418E-06"
-        ixy="3.1131E-08"
-        ixz="-2.671E-09"
-        iyy="5.9962E-05"
-        iyz="8.4245E-11"
-        izz="5.5233E-05" />
+        ixx="7.8825E-06"
+        ixy="3.4589E-08"
+        ixz="2.6621E-09"
+        iyy="6.1121E-05"
+        iyz="8.2708E-11"
+        izz="5.6294E-05" />
     </inertial>
     <visual>
       <origin
@@ -896,7 +1070,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/arm_link_2.STL" />
+          filename="package://biped_bike_robot/meshes/arm_elbow_pitch.STL" />
       </geometry>
       <material
         name="">
@@ -910,45 +1084,48 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/arm_link_2.STL" />
+          filename="package://biped_bike_robot/meshes/arm_elbow_pitch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="arm_link_2_jnt_jnt"
+    name="arm_elbow_pitch_jnt"
 
     type="revolute">
     <origin
-      xyz="-0.11295 -0.0415 0.0004"
+      xyz="-0.11295 -0.0415 0"
       rpy="0 0 0" />
     <parent
-      link="arm_link_1" />
+      link="arm_shoulder_pitch" />
     <child
-      link="arm_link_2" />
+      link="arm_elbow_pitch" />
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="end_effector">
+    name="arm_wrist_pitch">
     <inertial>
       <origin
-        xyz="0.036961 -0.0060773 -0.014805"
+        xyz="0.025146 -0.0066442 -0.014696"
         rpy="0 0 0" />
       <mass
-        value="0.043434" />
+        value="0.019754" />
       <inertia
-        ixx="7.5365E-06"
-        ixy="-2.2456E-09"
-        ixz="4.4063E-08"
-        iyy="9.8868E-06"
-        iyz="1.4693E-08"
-        izz="1.1251E-05" />
+        ixx="2.8794E-06"
+        ixy="6.5753E-08"
+        ixz="-8.4019E-11"
+        iyy="1.6045E-06"
+        iyz="-1.3786E-09"
+        izz="2.1038E-06" />
     </inertial>
     <visual>
       <origin
@@ -956,7 +1133,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/end_effector.STL" />
+          filename="package://biped_bike_robot/meshes/arm_wrist_pitch.STL" />
       </geometry>
       <material
         name="">
@@ -970,44 +1147,110 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/end_effector.STL" />
+          filename="package://biped_bike_robot/meshes/arm_wrist_pitch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="end_effector_jnt_jnt"
+    name="arm_wrist_pitch_jnt"
 
     type="revolute">
     <origin
       xyz="0.1618 0 -0.0064"
       rpy="0 0 0" />
     <parent
-      link="arm_link_2" />
+      link="arm_elbow_pitch" />
     <child
-      link="end_effector" />
+      link="arm_wrist_pitch" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
   <link
-    name="elbow_wheel">
+    name="arm_wrist_roll">
     <inertial>
       <origin
-        xyz="9.816E-13 3.4028E-14 0.0015204"
+        xyz="0.00038229 0.00064386 0.022797"
+        rpy="0 0 0" />
+      <mass
+        value="0.039491" />
+      <inertia
+        ixx="9.0859E-06"
+        ixy="1.4892E-08"
+        ixz="-4.9165E-08"
+        iyy="1.0941E-05"
+        iyz="-4.269E-08"
+        izz="6.6106E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://biped_bike_robot/meshes/arm_wrist_roll.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://biped_bike_robot/meshes/arm_wrist_roll.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+
+    name="arm_wrist_roll_jnt"
+
+    type="revolute">
+    <origin
+      xyz="0.0432 -0.015 -0.0147"
+      rpy="-1.5708 0 -1.5708" />
+    <parent
+      link="arm_wrist_pitch" />
+    <child
+      link="arm_wrist_roll" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="arm_wheel_pitch_">
+    <inertial>
+      <origin
+        xyz="5.8542E-13 -7.8926E-13 0.0035204"
         rpy="0 0 0" />
       <mass
         value="0.012433" />
       <inertia
         ixx="3.5443E-06"
-        ixy="3.3698E-12"
-        ixz="-1.73E-17"
+        ixy="7.0949E-13"
+        ixz="-1.027E-17"
         iyy="3.5443E-06"
-        iyz="-5.4709E-19"
+        iyz="1.3933E-17"
         izz="6.6204E-06" />
     </inertial>
     <visual>
@@ -1016,7 +1259,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/elbow_wheel.STL" />
+          filename="package://biped_bike_robot/meshes/arm_wheel_pitch_.STL" />
       </geometry>
       <material
         name="">
@@ -1030,23 +1273,262 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://biped_bike_robot/meshes/elbow_wheel.STL" />
+          filename="package://biped_bike_robot/meshes/arm_wheel_pitch_.STL" />
       </geometry>
     </collision>
   </link>
   <joint
 
-    name="elbow_wheel_jnt_jnt"
+    name="arm_wheel_pitch__jnt"
 
     type="continuous">
     <origin
-      xyz="-0.1835 0 -0.02345"
+      xyz="-0.1835 0 -0.02585"
       rpy="0 0 0" />
     <parent
-      link="arm_link_1" />
+      link="arm_shoulder_pitch" />
     <child
-      link="elbow_wheel" />
+      link="arm_wheel_pitch_" />
     <axis
       xyz="0 0 -1" />
+    <limit
+      effort="1.5"
+      velocity="6.38" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
   </joint>
+  <gazebo reference="base_link">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="l_hip_yaw">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="l_hip_roll">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="l_hip_pitch">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="l_knee_pitch">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="l_ankle_pitch">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="l_foot_roll">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="l_knee_pitch_wheel">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="r_hip_yaw">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="r_hip_roll">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="r_hip_pitch">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="r_knee_pitch">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="r_ankle_pitch">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="r_foot_roll">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="r_knee_pitch_wheel">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="arm_base_yaw">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="arm_shoulder_pitch">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="arm_elbow_pitch">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="arm_wrist_pitch">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="arm_wrist_roll">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <gazebo reference="arm_wheel_pitch_">
+    <self_collide>true</self_collide>
+  </gazebo>
+  <ros2_control name="GazeboSystem" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <joint name="l_hip_yaw_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="l_hip_roll_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="l_hip_pitch_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="l_knee_pitch_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="l_ankle_pitch_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="l_foot_roll_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="l_knee_pitch_wheel_jnt">
+      <command_interface name="velocity"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="r_hip_yaw_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="r_hip_roll_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="r_hip_pitch_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="r_knee_pitch_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="r_ankle_pitch_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="r_foot_roll_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="r_knee_pitch_wheel_jnt">
+      <command_interface name="velocity"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="arm_base_yaw_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="arm_shoulder_pitch_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="arm_elbow_pitch_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="arm_wrist_pitch_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="arm_wrist_roll_jnt">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="arm_wheel_pitch__jnt">
+      <command_interface name="velocity"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </ros2_control>
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find biped_bike_robot)/config/controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
 </robot>

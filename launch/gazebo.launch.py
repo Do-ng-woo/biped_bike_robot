@@ -4,6 +4,7 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
+from launch.actions import ExecuteProcess
 
 def generate_launch_description():
     package_name = 'biped_bike_robot'
@@ -12,6 +13,10 @@ def generate_launch_description():
 
     with open(urdf_file, 'r') as infp:
         robot_description_config = infp.read()
+
+    # Xacro is not used, so manually resolve the $(find package) macro for the controllers yaml
+    robot_description_config = robot_description_config.replace(
+        '$(find biped_bike_robot)', pkg_share)
 
     gz_resource_path = os.path.dirname(pkg_share)
 
@@ -31,7 +36,9 @@ def generate_launch_description():
         arguments=[
             '-name', 'biped_bike_robot',
             '-topic', '/robot_description',
-            '-z', '26',
+            '-z', '0.40',  # slightly above ground
+            # Set the calculated balanced initial arm pitch (-166 degrees = -2.91 rad)
+            '-j', 'arm_shoulder_pitch_jnt', '-J', '-2.91'
         ],
         output='screen',
     )
@@ -52,10 +59,32 @@ def generate_launch_description():
         output='screen',
     )
 
+    # ros2_control 스포너 노드
+    joint_state_broadcaster_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
+    )
+
+    joint_trajectory_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["joint_trajectory_controller", "--controller-manager", "/controller_manager"],
+    )
+
+    wheel_velocity_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["wheel_velocity_controller", "--controller-manager", "/controller_manager"],
+    )
+
     return LaunchDescription([
         SetEnvironmentVariable('GZ_SIM_RESOURCE_PATH', gz_resource_path),
         gz_sim,
         robot_state_publisher,
         gz_spawn,
         gz_bridge,
+        joint_state_broadcaster_spawner,
+        joint_trajectory_controller_spawner,
+        wheel_velocity_controller_spawner,
     ])

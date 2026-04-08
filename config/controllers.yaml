@@ -1,0 +1,59 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 1000  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    joint_trajectory_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    wheel_velocity_controller:
+      type: velocity_controllers/JointGroupVelocityController
+
+joint_trajectory_controller:
+  ros__parameters:
+    joints:
+      # 좌측 다리 (Left Leg) - 6 DOF
+      - l_hip_yaw_jnt
+      - l_hip_roll_jnt
+      - l_hip_pitch_jnt
+      - l_knee_pitch_jnt
+      - l_ankle_pitch_jnt
+      - l_foot_roll_jnt
+      # 우측 다리 (Right Leg) - 6 DOF
+      - r_hip_yaw_jnt
+      - r_hip_roll_jnt
+      - r_hip_pitch_jnt
+      - r_knee_pitch_jnt
+      - r_ankle_pitch_jnt
+      - r_foot_roll_jnt
+      # 상체 (Upper Body) - 5 DOF
+      - arm_base_yaw_jnt
+      - arm_shoulder_pitch_jnt
+      - arm_elbow_pitch_jnt
+      - arm_wrist_pitch_jnt
+      - arm_wrist_roll_jnt
+      # Continuous joints (wheels) - 패시브, trajectory controller에서 제외
+      # - l_knee_pitch_wheel_jnt
+      # - r_knee_pitch_wheel_jnt
+      # - arm_wheel_pitch__jnt
+    
+    command_interfaces:
+      - position
+
+    state_interfaces:
+      - position
+      - velocity
+
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: true
+
+wheel_velocity_controller:
+  ros__parameters:
+    joints:
+      - l_knee_pitch_wheel_jnt
+      - r_knee_pitch_wheel_jnt
+      - arm_wheel_pitch__jnt
+    interface_name: velocity
