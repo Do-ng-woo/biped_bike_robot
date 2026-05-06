@@ -7,7 +7,7 @@
 
 ## 🎥 주행 및 보행 데모
 
-![Bipedal Walking Demo](media/walking_demo.mp4)
+![Bipedal Walking Demo](media/walking_demo.gif)
 
 ---
 
