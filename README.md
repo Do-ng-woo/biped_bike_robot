@@ -5,6 +5,12 @@
 
 ---
 
+## 🎥 주행 및 보행 데모
+
+![Bipedal Walking Demo](media/walking_demo.mp4)
+
+---
+
 ## 📐 관절 트리 다이어그램 (Joint Tree)
 
 ```

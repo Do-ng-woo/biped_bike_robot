@@ -473,18 +473,9 @@ class OP3WalkingEngine:
                                  self.y_move_phase_shift + 2*math.pi/self.y_move_period_time*self.l_ssp_start_time + math.pi,
                                  self.y_move_amplitude, self.y_move_amplitude_shift)
             
-            # 🚨 Z-Delay: SSP 시작 초기 15% 시간 동안은 발을 떼지 않고 땅을 눌러 무게 이동(평행사변형) 완성
-            ssp_dur = self.l_ssp_end_time - self.l_ssp_start_time
-            if (t - self.l_ssp_start_time) < (ssp_dur * 0.15):
-                left_z = self._wsin(self.l_ssp_start_time, self.z_move_period_time,
-                                    self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.l_ssp_start_time,
-                                    self.z_move_amplitude, self.z_move_amplitude_shift)
-            else:
-                # 남은 85% 시간 동안 더 빠르게 발을 들어 올림 (1/0.85 ≒ 1.18배 가속)
-                t_adj = self.l_ssp_start_time + (t - self.l_ssp_start_time - ssp_dur * 0.15) * 1.18
-                left_z = self._wsin(t_adj, self.z_move_period_time,
-                                    self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.l_ssp_start_time,
-                                    self.z_move_amplitude, self.z_move_amplitude_shift)
+            left_z  = self._wsin(t, self.z_move_period_time,
+                                 self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.l_ssp_start_time,
+                                 self.z_move_amplitude, self.z_move_amplitude_shift)
             
             left_yaw = self._wsin(t, self.a_move_period_time,
                                   self.a_move_phase_shift + 2*math.pi/self.a_move_period_time*self.l_ssp_start_time + math.pi,
@@ -558,17 +549,9 @@ class OP3WalkingEngine:
                                  self.y_move_phase_shift + 2*math.pi/self.y_move_period_time*self.r_ssp_start_time + math.pi,
                                  self.y_move_amplitude, self.y_move_amplitude_shift)
             
-            # 🚨 Z-Delay (Right): 오른발도 마찬가지로 무게 이동 완료 후 리프트 시작
-            ssp_dur = self.r_ssp_end_time - self.r_ssp_start_time
-            if (t - self.r_ssp_start_time) < (ssp_dur * 0.15):
-                right_z = self._wsin(self.r_ssp_start_time, self.z_move_period_time,
-                                     self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.r_ssp_start_time,
-                                     self.z_move_amplitude, self.z_move_amplitude_shift)
-            else:
-                t_adj = self.r_ssp_start_time + (t - self.r_ssp_start_time - ssp_dur * 0.15) * 1.18
-                right_z = self._wsin(t_adj, self.z_move_period_time,
-                                     self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.r_ssp_start_time,
-                                     self.z_move_amplitude, self.z_move_amplitude_shift)
+            right_z = self._wsin(t, self.z_move_period_time,
+                                 self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.r_ssp_start_time,
+                                 self.z_move_amplitude, self.z_move_amplitude_shift)
             
             right_yaw = self._wsin(t, self.a_move_period_time,
                                    self.a_move_phase_shift + 2*math.pi/self.a_move_period_time*self.r_ssp_start_time + math.pi,
@@ -621,6 +604,9 @@ class OP3WalkingEngine:
         ep[9]  = 0.0 + self.r_offset / 2       # left roll
         ep[10] = 0.0 + self.p_offset            # left pitch
         ep[11] = 0.0 + left_yaw + self.a_offset / 2  # left yaw
+        
+        # 골반은 항상 바닥과 평행 유지!
+        # 무게중심 이동은 y_swap(평행사변형 병진)으로만 처리.
         
         # --- Body swing ---
         if t <= self.l_ssp_end_time:
@@ -723,13 +709,21 @@ class OP3WalkerNode(Node):
         # Walking parameters
         # NOTE: 이 로봇의 전진 방향은 -X (OP3는 +X)
         #       따라서 x_move_amplitude를 음수로 설정!
-        # OP3WalkerNode 클래스 내부
+        #
+        # 🆕 이 로봇의 힙 간격 = 12.5cm (URDF: L=-0.01425, R=-0.13925)
+        #    OP3(힙간격 ~7cm) 대비 1.8배 넓으므로 y_swap만으로 체중 이동 불가.
+        #    com_tilt_angle로 발목/골반 롤을 기울여 CoM을 지지발 위로 이동시킴.
         param = WalkingParam()
-        param.init_x_offset = 0.010      # 안정성을 위해 골반 살짝 뒤로
-        param.x_move_amplitude = -0.040  # 부드러운 전진을 위해 4cm
-        param.z_move_amplitude = 0.040   # 4cm 무릎 굽혀 발 띄우기!
-        param.y_swap_amplitude = -0.020    # 좌우 무게중심 이동 (반전시켜 지지발 쪽으로 무게 이동)
-        param.period_time = 2.0          # 걷기 주기 (1.0초 단위로 더 빠르게 걷기!)
+        param.init_x_offset = -0.010     # 골반 약간 전방 (전도 방지)
+        param.init_z_offset = 0.020      # 무릎 살짝 굽혀 충격 흡수
+        param.period_time = 2.0          # 느리고 안정적인 보행
+        param.dsp_ratio = 0.3            # DSP 비율 (OP3 기본값)
+        param.x_move_amplitude = -0.030  # 보폭 3cm 전진
+        param.z_move_amplitude = 0.040   # 발 높이 4cm (확실한 리프트)
+        # 평행사변형 무게중심 이동: 이 로봇은 OP3 대비 Y축이 반전됨 → 음수 필요!
+        # 힙 간격 12.5cm, 지지발 위로 CoM 이동에 충분한 병진량
+        param.y_swap_amplitude = -0.040  # 평행사변형 병진 (음수=지지발 방향, 골반 수평 유지)
+        param.pelvis_offset = math.radians(5.0)  # 골반 롤 오프셋 (SSP 안정성)
         
         self.engine = OP3WalkingEngine(param)
         

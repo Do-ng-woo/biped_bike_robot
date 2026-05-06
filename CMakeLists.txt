@@ -14,8 +14,6 @@ install(DIRECTORY
 install(PROGRAMS
   scripts/patch_urdf.py
   scripts/ready_posture.py
-  scripts/dynamic_walker.py
-  scripts/axis_tester.py
   scripts/op3_walker.py
   scripts/transform_bike.py
   scripts/revert_bike.py

@@ -30,4 +30,11 @@ ros2 run biped_bike_robot transform_bike.py
 
 # 3. 키보드 조종
 ros2 run biped_bike_robot bike_teleop.py
+
+# 4. 이족보행 모드로 복귀
+ros2 run biped_bike_robot revert_bike.py
+
+# 5. 보행 시작
+ros2 run biped_bike_robot op3_walker.py
+
 ```
