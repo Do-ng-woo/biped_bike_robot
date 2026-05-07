@@ -1,13 +1,25 @@
 # 🤖 Biped Bike Robot — 로봇 구조 분석 문서
 
-> **biped_bike_robot_ver3** — SolidWorks에서 설계된 이족보행 자전거 탑승 로봇  
+> **biped_bike_robot_ver4** — SolidWorks에서 설계된 **이족보행 ↔ 3륜 차륜형 로봇 변환 시스템**  
 > ROS 2 Jazzy + Gazebo Harmonic 환경
+
+### ✨ Ver.4 업데이트 특징 (Sim-to-Real 최적화)
+- **정밀한 무게 반영**: 3D 프린터 슬라이싱 설정값을 기반으로 프레임 파트 하나하나의 실제 무게를 URDF에 정확히 반영했습니다.
+- **부품 마운트 추가**: 배터리 및 메인 기판 홀더(Holder) 파트가 추가되었습니다.
+- **실제 하드웨어 무게 통합**: 메인 기판과 배터리의 실측 무게가 물리 엔진에 그대로 반영되어, Sim-to-Real(가상-현실)의 괴리를 최소화하고 보행 및 변신 시뮬레이션의 정확도가 극대화되었습니다.
 
 ---
 
-## 🎥 주행 및 보행 데모
+## 🎥 주행 및 변신 데모
 
+### 1. 이족 보행 (Bipedal Walking)
 ![Bipedal Walking Demo](media/walking_demo.gif)
+
+### 2. 3륜 차륜형 변신 (Transform to Trike)
+![Transform to Trike](media/transform0506.gif)
+
+### 3. 이족 보행 모드 복귀 (Reverse Transform)
+![Reverse Transform](media/reverse_transform0506.gif)
 
 ---
 
@@ -47,29 +59,29 @@ base_link (골반/허리 프레임)
 
 | # | 링크 이름 | 위치 | 질량 (kg) | 설명 |
 |---|-----------|------|-----------|------|
-| 1 | `base_link` | 중심 | 0.202 | 골반/메인 프레임 |
+| 1 | `base_link` | 중심 | 0.560 | 골반/메인 프레임 (메인 기판 및 배터리 반영) |
 | 2 | `l_hip_yaw` | 좌측 | 0.027 | 좌측 고관절 요 회전부 |
 | 3 | `l_hip_roll` | 좌측 | 0.117 | 좌측 고관절 롤 링크 |
-| 4 | `l_hip_pitch` | 좌측 | 0.016 | 좌측 고관절 피치 링크 |
+| 4 | `l_hip_pitch` | 좌측 | 0.014 | 좌측 고관절 피치 링크 |
 | 5 | `l_knee_pitch` | 좌측 | 0.145 | 좌측 허벅지 (상부 다리) |
 | 6 | `l_ankle_pitch` | 좌측 | 0.117 | 좌측 정강이 (하부 다리) |
-| 7 | `l_foot_roll` | 좌측 | 0.073 | 좌측 발 |
+| 7 | `l_foot_roll` | 좌측 | 0.075 | 좌측 발 |
 | 8 | `l_knee_pitch_wheel` | 좌측 | 0.012 | 좌측 무릎 보조 휠 |
 | 9 | `r_hip_yaw` | 우측 | 0.027 | 우측 고관절 요 회전부 |
 | 10 | `r_hip_roll` | 우측 | 0.117 | 우측 고관절 롤 링크 |
-| 11 | `r_hip_pitch` | 우측 | 0.016 | 우측 고관절 피치 링크 |
+| 11 | `r_hip_pitch` | 우측 | 0.014 | 우측 고관절 피치 링크 |
 | 12 | `r_knee_pitch` | 우측 | 0.145 | 우측 허벅지 (상부 다리) |
 | 13 | `r_ankle_pitch` | 우측 | 0.117 | 우측 정강이 (하부 다리) |
-| 14 | `r_foot_roll` | 우측 | 0.073 | 우측 발 |
+| 14 | `r_foot_roll` | 우측 | 0.075 | 우측 발 |
 | 15 | `r_knee_pitch_wheel` | 우측 | 0.012 | 우측 무릎 보조 휠 |
 | 16 | `arm_base_yaw` | 상체 | 0.053 | 팔 베이스 요 회전부 |
-| 17 | `arm_shoulder_pitch` | 상체 | 0.092 | 상완 (어깨 피치) |
+| 17 | `arm_shoulder_pitch` | 상체 | 0.101 | 상완 (어깨 피치) |
 | 18 | `arm_elbow_pitch` | 상체 | 0.047 | 전완 (팔꿈치 피치) |
 | 19 | `arm_wrist_pitch` | 상체 | 0.020 | 손목 피치 |
 | 20 | `arm_wrist_roll` | 상체 | 0.039 | 손목 롤 / 엔드이펙터 |
 | 21 | `arm_wheel_pitch_` | 상체 | 0.012 | 팔 보조 휠 |
 
-> **총 질량**: 약 **1.389 kg**
+> **총 질량**: 약 **1.845 kg** (Sim-to-Real 실측치 일치)
 
 ---
 
