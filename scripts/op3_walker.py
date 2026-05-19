@@ -557,9 +557,12 @@ class OP3WalkingEngine:
                                    self.a_move_phase_shift + 2*math.pi/self.a_move_period_time*self.r_ssp_start_time + math.pi,
                                    self.a_move_amplitude, self.a_move_amplitude_shift)
                                    
-            # OP3 explicitly sets these to 0 in Phase 3
-            pelvis_offset_l = 0.0
-            pelvis_offset_r = 0.0
+            pelvis_offset_l = self._wsin(t, self.z_move_period_time,
+                                         self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.r_ssp_start_time,
+                                         self.pelvis_offset/2, self.pelvis_offset/2)
+            pelvis_offset_r = self._wsin(t, self.z_move_period_time,
+                                         self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.r_ssp_start_time,
+                                         -self.pelvis_swing/2, -self.pelvis_swing/2)
         
         else:
             # DSP: after right SSP
@@ -605,8 +608,8 @@ class OP3WalkingEngine:
         ep[10] = 0.0 + self.p_offset            # left pitch
         ep[11] = 0.0 + left_yaw + self.a_offset / 2  # left yaw
         
-        # 골반은 항상 바닥과 평행 유지!
-        # 무게중심 이동은 y_swap(평행사변형 병진)으로만 처리.
+        # 발의 roll/pitch 목표는 0으로 유지한다.
+        # 상체 수평을 우선할 때는 pelvis_offset도 0으로 두고, 무게중심 이동은 y_swap 병진으로 처리한다.
         
         # --- Body swing ---
         if t <= self.l_ssp_end_time:
@@ -706,24 +709,36 @@ class OP3WalkerNode(Node):
             10
         )
         
+        self.declare_parameter('period_time', 2.0)
+        self.declare_parameter('dsp_ratio', 0.3)
+        self.declare_parameter('x_move_amplitude', -0.030)
+        self.declare_parameter('z_move_amplitude', 0.040)
+        self.declare_parameter('y_swap_amplitude', -0.040)
+        self.declare_parameter('pelvis_offset_deg', 0.0)
+        self.declare_parameter('init_x_offset', -0.010)
+        self.declare_parameter('init_z_offset', 0.020)
+        self.declare_parameter('hip_pitch_offset_deg', 13.0)
+        self.declare_parameter('control_cycle', 0.008)
+        self.declare_parameter('num_cycles', 1)
+
         # Walking parameters
         # NOTE: 이 로봇의 전진 방향은 -X (OP3는 +X)
         #       따라서 x_move_amplitude를 음수로 설정!
         #
-        # 🆕 이 로봇의 힙 간격 = 12.5cm (URDF: L=-0.01425, R=-0.13925)
-        #    OP3(힙간격 ~7cm) 대비 1.8배 넓으므로 y_swap만으로 체중 이동 불가.
-        #    com_tilt_angle로 발목/골반 롤을 기울여 CoM을 지지발 위로 이동시킴.
+        # 이 로봇의 힙 간격 = 12.5cm (URDF: L=-0.01425, R=-0.13925)
+        # 상체 수평을 우선하므로 기본값은 골반 롤을 쓰지 않고 y_swap 병진으로 CoM을 옮긴다.
         param = WalkingParam()
-        param.init_x_offset = -0.010     # 골반 약간 전방 (전도 방지)
-        param.init_z_offset = 0.020      # 무릎 살짝 굽혀 충격 흡수
-        param.period_time = 2.0          # 느리고 안정적인 보행
-        param.dsp_ratio = 0.3            # DSP 비율 (OP3 기본값)
-        param.x_move_amplitude = -0.030  # 보폭 3cm 전진
-        param.z_move_amplitude = 0.040   # 발 높이 4cm (확실한 리프트)
+        param.init_x_offset = float(self.get_parameter('init_x_offset').value)
+        param.init_z_offset = float(self.get_parameter('init_z_offset').value)
+        param.hip_pitch_offset = math.radians(float(self.get_parameter('hip_pitch_offset_deg').value))
+        param.period_time = float(self.get_parameter('period_time').value)
+        param.dsp_ratio = float(self.get_parameter('dsp_ratio').value)
+        param.x_move_amplitude = float(self.get_parameter('x_move_amplitude').value)
+        param.z_move_amplitude = float(self.get_parameter('z_move_amplitude').value)
         # 평행사변형 무게중심 이동: 이 로봇은 OP3 대비 Y축이 반전됨 → 음수 필요!
         # 힙 간격 12.5cm, 지지발 위로 CoM 이동에 충분한 병진량
-        param.y_swap_amplitude = -0.040  # 평행사변형 병진 (음수=지지발 방향, 골반 수평 유지)
-        param.pelvis_offset = math.radians(5.0)  # 골반 롤 오프셋 (SSP 안정성)
+        param.y_swap_amplitude = float(self.get_parameter('y_swap_amplitude').value)
+        param.pelvis_offset = math.radians(float(self.get_parameter('pelvis_offset_deg').value))
         
         self.engine = OP3WalkingEngine(param)
         
@@ -736,8 +751,14 @@ class OP3WalkerNode(Node):
             'arm_wrist_pitch_jnt', 'arm_wrist_roll_jnt',
         ]
         
-        self.control_cycle = 0.008  # 8ms (125Hz) — OP3 default
-        self.num_cycles = 1         # 1 walking cycle (요청에 따라 1보만)
+        self.control_cycle = float(self.get_parameter('control_cycle').value)
+        self.num_cycles = int(self.get_parameter('num_cycles').value)
+        self.get_logger().info(
+            'Walking params: '
+            f'period={param.period_time:.3f}s, x={param.x_move_amplitude:.3f}m, '
+            f'z={param.z_move_amplitude:.3f}m, y_swap={param.y_swap_amplitude:.3f}m, '
+            f'pelvis_offset={math.degrees(param.pelvis_offset):.2f}deg, cycles={self.num_cycles}'
+        )
         
         self.timer = self.create_timer(2.0, self.generate_trajectory)
     

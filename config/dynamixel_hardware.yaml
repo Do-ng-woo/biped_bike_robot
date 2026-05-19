@@ -1,0 +1,234 @@
+bus:
+  device: /dev/ttyACM0
+  baudrate: 1000000
+  protocol_version: 2.0
+  transport: ttl
+  model: XL430-W250
+
+defaults:
+  position_center_tick: 2048
+  position_mode: 3
+  velocity_mode: 1
+  profile_velocity: null
+  pwm_limit: 885
+  profile_acceleration: null
+  position_p_gain: null
+  position_i_gain: null
+  position_d_gain: null
+  torque_enable_on_start: false
+  direction: 1
+  direction_checked: true
+
+control_table:
+  operating_mode: 11
+  pwm_limit: 36
+  torque_enable: 64
+  led: 65
+  position_d_gain: 80
+  position_i_gain: 82
+  position_p_gain: 84
+  goal_velocity: 104
+  profile_acceleration: 108
+  profile_velocity: 112
+  goal_position: 116
+  present_pwm: 124
+  present_load: 126
+  present_velocity: 128
+  present_position: 132
+  present_input_voltage: 144
+  present_temperature: 146
+
+conversion:
+  ticks_per_rev: 4096
+  center_tick: 2048
+  rad_per_tick: 0.0015339807878856412
+  tick_per_rad: 651.8986469044033
+  velocity_unit_rpm: 0.229
+  velocity_unit_rad_per_sec: 0.023980823922402087
+  velocity_raw_per_rad_per_sec: 41.7006433385832
+
+joints:
+  - id: 1
+    joint_name: l_hip_yaw_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: -1
+    direction_checked: true
+    active: true
+    notes: URDF zero is motor tick 2048
+
+  - id: 2
+    joint_name: l_hip_roll_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: 1
+    position_p_gain: 1000
+    direction_checked: true
+    active: true
+
+  - id: 3
+    joint_name: l_hip_pitch_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: 1
+    direction_checked: true
+    active: true
+
+  - id: 4
+    joint_name: l_knee_pitch_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: -1
+    direction_checked: true
+    active: true
+
+  - id: 5
+    joint_name: l_ankle_pitch_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: -1
+    direction_checked: true
+    active: true
+
+  - id: 6
+    joint_name: l_foot_roll_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: -1
+    position_p_gain: 1000
+    direction_checked: true
+    active: true
+
+  - id: 7
+    joint_name: l_knee_pitch_wheel_jnt
+    joint_type: continuous
+    control_mode: velocity
+    operating_mode: 1
+    direction: 1
+    direction_checked: true
+    active: true
+    notes: Left drive wheel
+
+  - id: 8
+    joint_name: r_hip_yaw_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: -1
+    direction_checked: true
+    active: true
+
+  - id: 9
+    joint_name: r_hip_roll_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: 1
+    position_p_gain: 1000
+    direction_checked: true
+    active: true
+
+  - id: 10
+    joint_name: r_hip_pitch_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: 1
+    direction_checked: true
+    active: true
+
+  - id: 11
+    joint_name: r_knee_pitch_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: 1
+    direction_checked: true
+    active: true
+
+  - id: 12
+    joint_name: r_ankle_pitch_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: 1
+    direction_checked: true
+    active: true
+
+  - id: 13
+    joint_name: r_foot_roll_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: -1
+    position_p_gain: 1000
+    direction_checked: true
+    active: true
+
+  - id: 14
+    joint_name: r_knee_pitch_wheel_jnt
+    joint_type: continuous
+    control_mode: velocity
+    operating_mode: 1
+    direction: 1
+    direction_checked: true
+    active: true
+    notes: Right drive wheel
+
+  - id: 15
+    joint_name: arm_base_yaw_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: 1
+    direction_checked: true
+    active: true
+
+  - id: 16
+    joint_name: arm_shoulder_pitch_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: 1
+    direction_checked: true
+    active: true
+
+  - id: 17
+    joint_name: arm_elbow_pitch_jnt
+    joint_type: revolute
+    control_mode: position
+    operating_mode: 3
+    center_tick: 2048
+    direction: -1
+    direction_checked: true
+    active: true
+
+excluded_joints:
+  - joint_name: arm_wrist_pitch_jnt
+    reason: No physical motor on hardware
+
+  - joint_name: arm_wrist_roll_jnt
+    reason: No physical motor on hardware
+
+  - joint_name: arm_wheel_pitch__jnt
+    reason: End-effector motor not used on current hardware

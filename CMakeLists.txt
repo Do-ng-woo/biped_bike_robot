@@ -18,6 +18,8 @@ install(PROGRAMS
   scripts/transform_bike.py
   scripts/revert_bike.py
   scripts/bike_teleop.py
+  scripts/transform_bike_reverse.py
+  scripts/dxl_joint_state_bridge.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
