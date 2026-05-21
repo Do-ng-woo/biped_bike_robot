@@ -29,18 +29,22 @@ from typing import Optional
 class WalkingParam:
     """OP3 walking_param_ 구조체의 Python 완전 이식"""
     # --- Init Pose Offsets (meters, radians) ---
-    init_x_offset: float = -0.010       # 골반 전후 (forward = negative X in our frame)
+    init_x_offset: float = -0.020       # 골반 전후 (forward = negative X in our frame)
     init_y_offset: float = 0.005        # 골반 좌우
-    init_z_offset: float = 0.020        # 골반 높이
+    init_z_offset: float = 0.025        # 골반 높이 보정. 클수록 다리를 더 접어 몸이 낮아짐
     init_roll_offset: float = 0.0
     init_pitch_offset: float = 0.0
     init_yaw_offset: float = 0.0
-    hip_pitch_offset: float = math.radians(13.0)  # 고관절 전방 기울임
+    hip_pitch_offset: float = math.radians(12.0)  # 고관절 전방 기울임
 
     # --- Timing ---
     period_time: float = 0.6            # 한 주기 (초) — OP3 default 600ms
     dsp_ratio: float = 0.3             # Double Support Phase 비율 (무게 이동을 위한 여유 시간 확보)
-    step_fb_ratio: float = 0.28        # Forward/Back swap 비율
+    step_fb_ratio: float = 0.30        # Forward/Back swap 비율
+    x_swap_forward_bias: float = -0.003 # 전진 방향(-X)으로 x_swap 중심을 이동
+    x_swap_time_advance_ratio: float = 0.08 # x_swap을 보행 주기 대비 이 비율만큼 앞당김
+    x_move_start_scale: float = 1.0     # 출발 시 보폭 비율
+    x_move_ramp_per_cycle: float = 0.0  # 매 보행 주기마다 늘릴 보폭 비율
 
     # --- Walking Amplitudes ---
     x_move_amplitude: float = 0.0      # 전후 보폭 (m) — 실행 시 설정
@@ -62,6 +66,16 @@ class WalkingParam:
 
     # --- Pelvis ---
     pelvis_offset: float = math.radians(3.0)  # 골반 롤 오프셋
+    support_hip_roll_lift: float = math.radians(10.0)  # 실기 보정: 지지발 힙 롤 추가 보정
+    support_hip_roll_lift_sign: float = 1.0
+    support_ankle_roll_lift: float = 0.0      # 실기 보정: 지지발 ankle/foot roll 추가 보정
+    support_ankle_roll_lift_sign: float = 1.0
+    swing_foot_pitch_lift: float = 0.0         # 실기 보정: 스윙발 pitch 추가 보정
+    swing_foot_pitch_lift_sign: float = 1.0
+    swing_ankle_pitch_lift: float = 0.0        # 실기 보정: 스윙발 ankle pitch 직접 보정
+    swing_ankle_pitch_lift_sign: float = 1.0
+    pelvis_pitch_forward_lift: float = math.radians(5.0)  # 실기 보정: 골반 면 전방 pitch 보정
+    pelvis_pitch_forward_lift_sign: float = 1.0
     arm_swing_gain: float = 1.5
 
 
@@ -234,6 +248,7 @@ class OP3WalkingEngine:
         
         # Movement amplitudes
         self.x_swap_amplitude = 0.0
+        self.x_swap_time_advance = 0.0
         self.x_move_amplitude = 0.0
         self.y_swap_amplitude = 0.0
         self.y_move_amplitude = 0.0
@@ -257,6 +272,16 @@ class OP3WalkingEngine:
         # Pelvis
         self.pelvis_offset = 0.0
         self.pelvis_swing = 0.0
+        self.support_hip_roll_lift = 0.0
+        self.support_hip_roll_lift_sign = 1.0
+        self.support_ankle_roll_lift = 0.0
+        self.support_ankle_roll_lift_sign = 1.0
+        self.swing_foot_pitch_lift = 0.0
+        self.swing_foot_pitch_lift_sign = 1.0
+        self.swing_ankle_pitch_lift = 0.0
+        self.swing_ankle_pitch_lift_sign = 1.0
+        self.pelvis_pitch_forward_lift = 0.0
+        self.pelvis_pitch_forward_lift_sign = 1.0
         self.arm_swing_gain = 0.0
         
         # State
@@ -265,6 +290,7 @@ class OP3WalkingEngine:
         self.ctrl_running = False
         self.real_running = False
         self.previous_x_move_amplitude = 0.0
+        self.x_move_scale = self.param.x_move_start_scale
         
         # Body swing (output)
         self.body_swing_y = 0.0
@@ -285,6 +311,13 @@ class OP3WalkingEngine:
     def _wsin(self, time, period, period_shift, mag, mag_shift):
         """mag * sin(2π/period * time - period_shift) + mag_shift"""
         return mag * math.sin(2 * math.pi / period * time - period_shift) + mag_shift
+
+    def _ssp_lift_profile(self, time, start_time, end_time):
+        """0 at SSP start/end, 1 at mid-SSP."""
+        if time <= start_time or time >= end_time:
+            return 0.0
+        phase = (time - start_time) / (end_time - start_time)
+        return math.sin(math.pi * phase)
     
     # ----------------------------------------------------------
     # updateTimeParam (L334-361)
@@ -318,6 +351,17 @@ class OP3WalkingEngine:
         
         self.pelvis_offset = p.pelvis_offset
         self.pelvis_swing = self.pelvis_offset * 0.35
+        self.x_swap_time_advance = self.period_time * p.x_swap_time_advance_ratio
+        self.support_hip_roll_lift = p.support_hip_roll_lift
+        self.support_hip_roll_lift_sign = p.support_hip_roll_lift_sign
+        self.support_ankle_roll_lift = p.support_ankle_roll_lift
+        self.support_ankle_roll_lift_sign = p.support_ankle_roll_lift_sign
+        self.swing_foot_pitch_lift = p.swing_foot_pitch_lift
+        self.swing_foot_pitch_lift_sign = p.swing_foot_pitch_lift_sign
+        self.swing_ankle_pitch_lift = p.swing_ankle_pitch_lift
+        self.swing_ankle_pitch_lift_sign = p.swing_ankle_pitch_lift_sign
+        self.pelvis_pitch_forward_lift = p.pelvis_pitch_forward_lift
+        self.pelvis_pitch_forward_lift_sign = p.pelvis_pitch_forward_lift_sign
         self.arm_swing_gain = p.arm_swing_gain
     
     # ----------------------------------------------------------
@@ -327,12 +371,10 @@ class OP3WalkingEngine:
         p = self.param
         
         # Forward/Back
-        self.x_move_amplitude = p.x_move_amplitude
-        self.x_swap_amplitude = p.x_move_amplitude * p.step_fb_ratio
-        
-        if self.previous_x_move_amplitude == 0:
-            self.x_move_amplitude *= 0.5
-            self.x_swap_amplitude *= 0.5
+        self.x_move_scale = max(0.0, min(1.0, self.x_move_scale))
+        self.x_move_amplitude = p.x_move_amplitude * self.x_move_scale
+        self.x_swap_amplitude = p.x_move_amplitude * p.step_fb_ratio * self.x_move_scale
+        self.x_swap_amplitude_shift = p.x_swap_forward_bias * self.x_move_scale
         
         # Right/Left
         self.y_move_amplitude = p.y_move_amplitude / 2
@@ -422,7 +464,7 @@ class OP3WalkingEngine:
         
         # --- 4구간 사인파로 발 끝점 계산 ---
         # swap: 양 발 공통 진동
-        swap_x = self._wsin(self.time, self.x_swap_period_time,
+        swap_x = self._wsin(self.time + self.x_swap_time_advance, self.x_swap_period_time,
                             self.x_swap_phase_shift, self.x_swap_amplitude,
                             self.x_swap_amplitude_shift)
         swap_y = self._wsin(self.time, self.y_swap_period_time,
@@ -434,6 +476,15 @@ class OP3WalkingEngine:
         
         pelvis_offset_l = 0.0
         pelvis_offset_r = 0.0
+        support_hip_roll_lift_l = 0.0
+        support_hip_roll_lift_r = 0.0
+        support_ankle_roll_lift_l = 0.0
+        support_ankle_roll_lift_r = 0.0
+        swing_foot_pitch_l = 0.0
+        swing_foot_pitch_r = 0.0
+        swing_ankle_pitch_l = 0.0
+        swing_ankle_pitch_r = 0.0
+        pelvis_pitch_forward = 0.0
         
         t = self.time
         
@@ -498,6 +549,32 @@ class OP3WalkingEngine:
             pelvis_offset_r = self._wsin(t, self.z_move_period_time,
                                          self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.l_ssp_start_time,
                                          -self.pelvis_offset/2, -self.pelvis_offset/2)
+            support_gain = (
+                self.support_hip_roll_lift_sign
+                * self.support_hip_roll_lift
+                * self._ssp_lift_profile(t, self.l_ssp_start_time, self.l_ssp_end_time)
+            )
+            support_hip_roll_lift_r = support_gain
+            support_ankle_roll_lift_r = (
+                self.support_ankle_roll_lift_sign
+                * self.support_ankle_roll_lift
+                * self._ssp_lift_profile(t, self.l_ssp_start_time, self.l_ssp_end_time)
+            )
+            swing_foot_pitch_l = (
+                self.swing_foot_pitch_lift_sign
+                * self.swing_foot_pitch_lift
+                * self._ssp_lift_profile(t, self.l_ssp_start_time, self.l_ssp_end_time)
+            )
+            swing_ankle_pitch_l = (
+                self.swing_ankle_pitch_lift_sign
+                * self.swing_ankle_pitch_lift
+                * self._ssp_lift_profile(t, self.l_ssp_start_time, self.l_ssp_end_time)
+            )
+            pelvis_pitch_forward = (
+                self.pelvis_pitch_forward_lift_sign
+                * self.pelvis_pitch_forward_lift
+                * self._ssp_lift_profile(t, self.l_ssp_start_time, self.l_ssp_end_time)
+            )
         
         elif t <= self.r_ssp_start_time:
             # DSP: between left and right SSP
@@ -563,6 +640,32 @@ class OP3WalkingEngine:
             pelvis_offset_r = self._wsin(t, self.z_move_period_time,
                                          self.z_move_phase_shift + 2*math.pi/self.z_move_period_time*self.r_ssp_start_time,
                                          -self.pelvis_swing/2, -self.pelvis_swing/2)
+            support_gain = (
+                self.support_hip_roll_lift_sign
+                * self.support_hip_roll_lift
+                * self._ssp_lift_profile(t, self.r_ssp_start_time, self.r_ssp_end_time)
+            )
+            support_hip_roll_lift_l = -support_gain
+            support_ankle_roll_lift_l = (
+                -self.support_ankle_roll_lift_sign
+                * self.support_ankle_roll_lift
+                * self._ssp_lift_profile(t, self.r_ssp_start_time, self.r_ssp_end_time)
+            )
+            swing_foot_pitch_r = (
+                self.swing_foot_pitch_lift_sign
+                * self.swing_foot_pitch_lift
+                * self._ssp_lift_profile(t, self.r_ssp_start_time, self.r_ssp_end_time)
+            )
+            swing_ankle_pitch_r = (
+                self.swing_ankle_pitch_lift_sign
+                * self.swing_ankle_pitch_lift
+                * self._ssp_lift_profile(t, self.r_ssp_start_time, self.r_ssp_end_time)
+            )
+            pelvis_pitch_forward = (
+                self.pelvis_pitch_forward_lift_sign
+                * self.pelvis_pitch_forward_lift
+                * self._ssp_lift_profile(t, self.r_ssp_start_time, self.r_ssp_end_time)
+            )
         
         else:
             # DSP: after right SSP
@@ -598,14 +701,14 @@ class OP3WalkingEngine:
         ep[1]  = swap_y + right_y - self.y_offset / 2
         ep[2]  = swap_z + right_z + self.z_offset - LEG_LENGTH
         ep[3]  = 0.0 - self.r_offset / 2      # right roll
-        ep[4]  = 0.0 + self.p_offset           # right pitch
+        ep[4]  = 0.0 + self.p_offset + swing_foot_pitch_r  # right pitch
         ep[5]  = 0.0 + right_yaw - self.a_offset / 2  # right yaw
         
         ep[6]  = swap_x + left_x + self.x_offset
         ep[7]  = swap_y + left_y + self.y_offset / 2
         ep[8]  = swap_z + left_z + self.z_offset - LEG_LENGTH
         ep[9]  = 0.0 + self.r_offset / 2       # left roll
-        ep[10] = 0.0 + self.p_offset            # left pitch
+        ep[10] = 0.0 + self.p_offset + swing_foot_pitch_l  # left pitch
         ep[11] = 0.0 + left_yaw + self.a_offset / 2  # left yaw
         
         # 발의 roll/pitch 목표는 0으로 유지한다.
@@ -632,13 +735,24 @@ class OP3WalkingEngine:
         leg_angle = np.concatenate([right_angles, left_angles])
         
         # --- Apply hip offsets (OP3 L963-979) ---
-        # hip_roll pelvis offset
+        # hip/ankle roll 실기 보정.
+        # 발 자세는 수평으로 유지하되, 한 발 지지 때 처지는 실기 오차를 지지발 roll축으로 보상한다.
         leg_angle[1] += JOINT_AXIS_DIR[1] * pelvis_offset_r    # r_hip_roll
         leg_angle[7] += JOINT_AXIS_DIR[7] * pelvis_offset_l    # l_hip_roll
+        leg_angle[1] += JOINT_AXIS_DIR[1] * support_hip_roll_lift_r
+        leg_angle[7] += JOINT_AXIS_DIR[7] * support_hip_roll_lift_l
+        leg_angle[5] += JOINT_AXIS_DIR[5] * support_ankle_roll_lift_r
+        leg_angle[11] += JOINT_AXIS_DIR[11] * support_ankle_roll_lift_l
+
+        # 스윙발의 ankle pitch만 직접 보정한다. 뒤꿈치가 끌리거나 앞꿈치가 과하게 들릴 때 사용.
+        leg_angle[4] += JOINT_AXIS_DIR[4] * swing_ankle_pitch_r
+        leg_angle[10] += JOINT_AXIS_DIR[10] * swing_ankle_pitch_l
         
-        # hip_pitch offset (forward lean)
+        # hip_pitch offset (forward lean) + 실기 골반 pitch 보정
         leg_angle[2] -= JOINT_AXIS_DIR[2] * self.hit_pitch_offset   # r_hip_pitch
         leg_angle[8] -= JOINT_AXIS_DIR[8] * self.hit_pitch_offset   # l_hip_pitch
+        leg_angle[2] -= JOINT_AXIS_DIR[2] * pelvis_pitch_forward
+        leg_angle[8] -= JOINT_AXIS_DIR[8] * pelvis_pitch_forward
         
         return leg_angle
     
@@ -678,7 +792,10 @@ class OP3WalkingEngine:
             self.time += time_unit
             if self.time >= self.period_time:
                 self.time = 0
-                # FIX: 실제 계산된 amplitude를 기억 (부드러운 연속 보행)
+                self.x_move_scale = min(
+                    1.0,
+                    self.x_move_scale + self.param.x_move_ramp_per_cycle,
+                )
                 self.previous_x_move_amplitude = self.x_move_amplitude
         
         return output
@@ -711,14 +828,30 @@ class OP3WalkerNode(Node):
         
         self.declare_parameter('period_time', 2.0)
         self.declare_parameter('dsp_ratio', 0.3)
-        self.declare_parameter('x_move_amplitude', -0.030)
-        self.declare_parameter('z_move_amplitude', 0.040)
-        self.declare_parameter('y_swap_amplitude', -0.040)
+        self.declare_parameter('step_fb_ratio', 0.10)
+        self.declare_parameter('x_swap_forward_bias', -0.003)
+        self.declare_parameter('x_swap_time_advance_ratio', 0.08)
+        self.declare_parameter('x_move_start_scale', 1.0)
+        self.declare_parameter('x_move_ramp_per_cycle', 0.0)
+        self.declare_parameter('x_move_amplitude', -0.020)
+        self.declare_parameter('z_move_amplitude', 0.070)
+        self.declare_parameter('y_swap_amplitude', -0.047)
         self.declare_parameter('pelvis_offset_deg', 0.0)
-        self.declare_parameter('init_x_offset', -0.010)
-        self.declare_parameter('init_z_offset', 0.020)
-        self.declare_parameter('hip_pitch_offset_deg', 13.0)
+        self.declare_parameter('support_hip_roll_lift_deg', 10.0)
+        self.declare_parameter('support_hip_roll_lift_sign', 1.0)
+        self.declare_parameter('support_ankle_roll_lift_deg', 0.0)
+        self.declare_parameter('support_ankle_roll_lift_sign', 1.0)
+        self.declare_parameter('swing_foot_pitch_lift_deg', 0.0)
+        self.declare_parameter('swing_foot_pitch_lift_sign', 1.0)
+        self.declare_parameter('swing_ankle_pitch_lift_deg', 0.0)
+        self.declare_parameter('swing_ankle_pitch_lift_sign', 1.0)
+        self.declare_parameter('pelvis_pitch_forward_lift_deg', 5.0)
+        self.declare_parameter('pelvis_pitch_forward_lift_sign', 1.0)
+        self.declare_parameter('init_x_offset', -0.020)
+        self.declare_parameter('init_z_offset', 0.025)
+        self.declare_parameter('hip_pitch_offset_deg', 12.0)
         self.declare_parameter('control_cycle', 0.008)
+        self.declare_parameter('trajectory_time_scale', 1.0)
         self.declare_parameter('num_cycles', 1)
 
         # Walking parameters
@@ -733,12 +866,49 @@ class OP3WalkerNode(Node):
         param.hip_pitch_offset = math.radians(float(self.get_parameter('hip_pitch_offset_deg').value))
         param.period_time = float(self.get_parameter('period_time').value)
         param.dsp_ratio = float(self.get_parameter('dsp_ratio').value)
+        param.step_fb_ratio = float(self.get_parameter('step_fb_ratio').value)
+        param.x_swap_forward_bias = float(self.get_parameter('x_swap_forward_bias').value)
+        param.x_swap_time_advance_ratio = float(
+            self.get_parameter('x_swap_time_advance_ratio').value
+        )
+        param.x_move_start_scale = float(self.get_parameter('x_move_start_scale').value)
+        param.x_move_ramp_per_cycle = float(self.get_parameter('x_move_ramp_per_cycle').value)
         param.x_move_amplitude = float(self.get_parameter('x_move_amplitude').value)
         param.z_move_amplitude = float(self.get_parameter('z_move_amplitude').value)
         # 평행사변형 무게중심 이동: 이 로봇은 OP3 대비 Y축이 반전됨 → 음수 필요!
         # 힙 간격 12.5cm, 지지발 위로 CoM 이동에 충분한 병진량
         param.y_swap_amplitude = float(self.get_parameter('y_swap_amplitude').value)
         param.pelvis_offset = math.radians(float(self.get_parameter('pelvis_offset_deg').value))
+        param.support_hip_roll_lift = math.radians(
+            float(self.get_parameter('support_hip_roll_lift_deg').value)
+        )
+        param.support_hip_roll_lift_sign = float(
+            self.get_parameter('support_hip_roll_lift_sign').value
+        )
+        param.support_ankle_roll_lift = math.radians(
+            float(self.get_parameter('support_ankle_roll_lift_deg').value)
+        )
+        param.support_ankle_roll_lift_sign = float(
+            self.get_parameter('support_ankle_roll_lift_sign').value
+        )
+        param.swing_foot_pitch_lift = math.radians(
+            float(self.get_parameter('swing_foot_pitch_lift_deg').value)
+        )
+        param.swing_foot_pitch_lift_sign = float(
+            self.get_parameter('swing_foot_pitch_lift_sign').value
+        )
+        param.swing_ankle_pitch_lift = math.radians(
+            float(self.get_parameter('swing_ankle_pitch_lift_deg').value)
+        )
+        param.swing_ankle_pitch_lift_sign = float(
+            self.get_parameter('swing_ankle_pitch_lift_sign').value
+        )
+        param.pelvis_pitch_forward_lift = math.radians(
+            float(self.get_parameter('pelvis_pitch_forward_lift_deg').value)
+        )
+        param.pelvis_pitch_forward_lift_sign = float(
+            self.get_parameter('pelvis_pitch_forward_lift_sign').value
+        )
         
         self.engine = OP3WalkingEngine(param)
         
@@ -752,19 +922,51 @@ class OP3WalkerNode(Node):
         ]
         
         self.control_cycle = float(self.get_parameter('control_cycle').value)
-        self.num_cycles = int(self.get_parameter('num_cycles').value)
+        self.trajectory_time_scale = max(
+            0.1,
+            float(self.get_parameter('trajectory_time_scale').value),
+        )
+        self.num_cycles = max(1, int(self.get_parameter('num_cycles').value))
         self.get_logger().info(
             'Walking params: '
             f'period={param.period_time:.3f}s, x={param.x_move_amplitude:.3f}m, '
             f'z={param.z_move_amplitude:.3f}m, y_swap={param.y_swap_amplitude:.3f}m, '
-            f'pelvis_offset={math.degrees(param.pelvis_offset):.2f}deg, cycles={self.num_cycles}'
+            f'step_fb_ratio={param.step_fb_ratio:.2f}, '
+            f'x_swap_forward_bias={param.x_swap_forward_bias:.3f}m, '
+            f'x_swap_time_advance={param.x_swap_time_advance_ratio:.2f}T, '
+            f'x_ramp={param.x_move_start_scale:.2f}+{param.x_move_ramp_per_cycle:.2f}/cycle, '
+            f'pelvis_offset={math.degrees(param.pelvis_offset):.2f}deg, '
+            f'support_hip_roll_lift={math.degrees(param.support_hip_roll_lift):.2f}deg, '
+            f'support_hip_roll_lift_sign={param.support_hip_roll_lift_sign:.1f}, '
+            f'support_ankle_roll_lift={math.degrees(param.support_ankle_roll_lift):.2f}deg, '
+            f'support_ankle_roll_lift_sign={param.support_ankle_roll_lift_sign:.1f}, '
+            f'swing_foot_pitch_lift={math.degrees(param.swing_foot_pitch_lift):.2f}deg, '
+            f'swing_foot_pitch_lift_sign={param.swing_foot_pitch_lift_sign:.1f}, '
+            f'swing_ankle_pitch_lift={math.degrees(param.swing_ankle_pitch_lift):.2f}deg, '
+            f'swing_ankle_pitch_lift_sign={param.swing_ankle_pitch_lift_sign:.1f}, '
+            f'pelvis_pitch_forward_lift={math.degrees(param.pelvis_pitch_forward_lift):.2f}deg, '
+            f'pelvis_pitch_forward_lift_sign={param.pelvis_pitch_forward_lift_sign:.1f}, '
+            f'time_scale={self.trajectory_time_scale:.2f}, '
+            f'cycles={self.num_cycles}, steps={self.num_cycles * 2}'
         )
         
         self.timer = self.create_timer(2.0, self.generate_trajectory)
+
+    @staticmethod
+    def _duration_from_seconds(seconds: float) -> Duration:
+        sec = int(seconds)
+        nanosec = int(round((seconds - sec) * 1e9))
+        if nanosec >= 1_000_000_000:
+            sec += 1
+            nanosec -= 1_000_000_000
+        return Duration(sec=sec, nanosec=nanosec)
     
     def generate_trajectory(self):
         self.timer.cancel()
-        self.get_logger().info('Generating OP3-style walking trajectory...')
+        self.get_logger().info(
+            'Generating OP3-style walking trajectory '
+            f'({self.num_cycles} cycles = {self.num_cycles * 2} steps)...'
+        )
         
         msg = JointTrajectory()
         msg.joint_names = self.joint_names
@@ -776,7 +978,7 @@ class OP3WalkerNode(Node):
         if init_angles is not None:
             p0 = JointTrajectoryPoint()
             p0.positions = init_angles.tolist()
-            p0.time_from_start = Duration(sec=2, nanosec=0)
+            p0.time_from_start = self._duration_from_seconds(2.0 * self.trajectory_time_scale)
             msg.points.append(p0)
         
         # 2) Start walking
@@ -785,7 +987,7 @@ class OP3WalkerNode(Node):
         
         total_time = self.engine.param.period_time * self.num_cycles
         t = 0.0
-        base_time = 3.0  # start at 3s
+        base_time = 3.0 * self.trajectory_time_scale  # start after ready pose settles
         point_count = 0
         
         while t < total_time:
@@ -793,11 +995,8 @@ class OP3WalkerNode(Node):
             if angles is not None:
                 point = JointTrajectoryPoint()
                 point.positions = angles.tolist()
-                abs_t = base_time + t
-                point.time_from_start = Duration(
-                    sec=int(abs_t),
-                    nanosec=int((abs_t % 1) * 1e9)
-                )
+                abs_t = base_time + t * self.trajectory_time_scale
+                point.time_from_start = self._duration_from_seconds(abs_t)
                 msg.points.append(point)
                 point_count += 1
             
@@ -806,25 +1005,29 @@ class OP3WalkerNode(Node):
             if point_count % 200 == 0:
                 self.get_logger().info(f'  Generated {point_count} points ({t:.1f}/{total_time:.1f}s)')
         
-        # 3) Stop walking → return to init
+        # Add one clean cycle-boundary point, then stop generating commands.
+        # A cycle is left + right swing, so num_cycles=5 means 10 forward steps.
+        final_angles = self.engine.step(self.control_cycle)
+        if final_angles is not None:
+            point = JointTrajectoryPoint()
+            point.positions = final_angles.tolist()
+            point.time_from_start = self._duration_from_seconds(
+                base_time + total_time * self.trajectory_time_scale
+            )
+            msg.points.append(point)
+            point_count += 1
+
+        # Do not generate an extra stop/return-to-init gait. On the real robot that
+        # felt like an unwanted additional step and made the feet reverse awkwardly.
         self.engine.stop()
-        # Run a few more cycles to decelerate
-        for _ in range(int(self.engine.param.period_time * 2 / self.control_cycle)):
-            angles = self.engine.step(self.control_cycle)
-            if angles is not None:
-                point = JointTrajectoryPoint()
-                point.positions = angles.tolist()
-                abs_t = base_time + t
-                point.time_from_start = Duration(
-                    sec=int(abs_t),
-                    nanosec=int((abs_t % 1) * 1e9)
-                )
-                msg.points.append(point)
-                point_count += 1
-            t += self.control_cycle
         
         self.publisher_.publish(msg)
-        self.get_logger().info(f'Published {point_count} trajectory points! ({t:.1f}s total)')
+        playback_time = base_time + total_time * self.trajectory_time_scale
+        self.get_logger().info(
+            f'Published {point_count} walking points: '
+            f'{self.num_cycles} cycles / {self.num_cycles * 2} steps, '
+            f'engine_time={total_time:.1f}s, playback_time={playback_time:.1f}s'
+        )
 
 
 def main(args=None):
