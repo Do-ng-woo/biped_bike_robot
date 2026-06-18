@@ -7,6 +7,11 @@ from builtin_interfaces.msg import Duration
 class ReadyPosturePublisher(Node):
     def __init__(self):
         super().__init__('ready_posture_publisher')
+        self.declare_parameter('move_duration_sec', 3.0)
+        self.move_duration_sec = max(
+            0.1,
+            float(self.get_parameter('move_duration_sec').value),
+        )
         self.publisher_ = self.create_publisher(
             JointTrajectory, 
             '/joint_trajectory_controller/joint_trajectory', 
@@ -67,12 +72,16 @@ class ReadyPosturePublisher(Node):
             0.0, 0.0, 0.0, 0.0, 0.0,
         ]
         
-        # 도착 시간: 2초에 걸쳐 부드럽게 무릎을 굽힙니다.
-        point.time_from_start = Duration(sec=2, nanosec=0)
+        # 브릿지가 현재 자세부터 이 목표까지 선형 보간합니다.
+        sec = int(self.move_duration_sec)
+        nanosec = int(round((self.move_duration_sec - sec) * 1e9))
+        point.time_from_start = Duration(sec=sec, nanosec=nanosec)
         
         msg.points.append(point)
         self.publisher_.publish(msg)
-        self.get_logger().info('Published Ready Posture (Bent Knees) Command!')
+        self.get_logger().info(
+            f'Published Ready Posture command ({self.move_duration_sec:.1f}s transition)'
+        )
         self.timer.cancel()  # 한 번 보내고 타이머 정지
 
 def main(args=None):

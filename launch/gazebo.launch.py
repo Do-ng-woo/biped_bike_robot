@@ -37,8 +37,6 @@ def generate_launch_description():
             '-name', 'biped_bike_robot',
             '-topic', '/robot_description',
             '-z', '0.40',  # slightly above ground
-            # Set the calculated balanced initial arm pitch (-166 degrees = -2.91 rad)
-            '-j', 'arm_shoulder_pitch_jnt', '-J', '-2.91'
         ],
         output='screen',
     )

@@ -17,6 +17,7 @@ Moving around:
 w/s : increase/decrease forward speed
 a/d : turn left/right (Differential Drive)
 q   : force stop
+space: force stop
 
 CTRL-C to quit
 """
@@ -27,6 +28,7 @@ moveBindings = {
     'a': (0, 1),
     'd': (0, -1),
     'q': (0, 0),
+    ' ': (0, 0),
 }
 
 def getKey(settings):
@@ -43,6 +45,9 @@ def getKey(settings):
 class BikeTeleopNode(Node):
     def __init__(self):
         super().__init__('bike_teleop_node')
+        self.declare_parameter('speed_step', 0.5)
+        self.declare_parameter('turn_step', 0.5)
+        self.declare_parameter('max_wheel_speed', 2.0)
         # JointGroupVelocityController commands
         self.publisher_ = self.create_publisher(Float64MultiArray, '/wheel_velocity_controller/commands', 10)
         self.timer = self.create_timer(0.1, self.timer_callback)
@@ -50,8 +55,9 @@ class BikeTeleopNode(Node):
         self.linear_vel = 0.0
         self.angular_vel = 0.0
         
-        self.speed_step = 2.0
-        self.turn_step = 2.0
+        self.speed_step = float(self.get_parameter('speed_step').value)
+        self.turn_step = float(self.get_parameter('turn_step').value)
+        self.max_wheel_speed = float(self.get_parameter('max_wheel_speed').value)
 
         self.get_logger().info(msg)
 
@@ -64,6 +70,14 @@ class BikeTeleopNode(Node):
             else:
                 self.linear_vel += lin * self.speed_step
                 self.angular_vel += ang * self.turn_step
+                self.linear_vel = max(
+                    -self.max_wheel_speed,
+                    min(self.max_wheel_speed, self.linear_vel),
+                )
+                self.angular_vel = max(
+                    -self.max_wheel_speed,
+                    min(self.max_wheel_speed, self.angular_vel),
+                )
             
             self.get_logger().info(f'Speed: {self.linear_vel} | Turn: {self.angular_vel}')
         else:
@@ -113,6 +127,7 @@ def main(args=None):
         cmd = Float64MultiArray()
         cmd.data = [0.0, 0.0, 0.0]
         node.publisher_.publish(cmd)
+        rclpy.spin_once(node, timeout_sec=0.1)
         
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
         node.destroy_node()

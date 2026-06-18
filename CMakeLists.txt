@@ -3,6 +3,15 @@ project(biped_bike_robot)
 
 find_package(ament_cmake REQUIRED)
 
+if(BUILD_TESTING)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(trajectory_interpolation_test
+    test/test_trajectory_interpolation.py
+    PYTHON_EXECUTABLE /usr/bin/python3
+  )
+endif()
+
 install(DIRECTORY
   config
   launch
@@ -16,6 +25,7 @@ install(PROGRAMS
   scripts/ready_posture.py
   scripts/op3_walker.py
   scripts/transform_bike.py
+  scripts/bike_transform_sequence.py
   scripts/revert_bike.py
   scripts/bike_teleop.py
   scripts/transform_bike_reverse.py

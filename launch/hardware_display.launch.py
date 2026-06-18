@@ -51,6 +51,21 @@ def generate_launch_description():
                 description="Forward JointTrajectory commands to Dynamixel motors.",
             ),
             DeclareLaunchArgument(
+                "enable_velocity_commands",
+                default_value="true",
+                description="Forward wheel velocity commands to Dynamixel motors.",
+            ),
+            DeclareLaunchArgument(
+                "max_wheel_velocity_rad_s",
+                default_value="2.0",
+                description="Clamp each physical wheel command to this speed.",
+            ),
+            DeclareLaunchArgument(
+                "wheel_command_timeout_sec",
+                default_value="0.5",
+                description="Stop wheels when velocity commands stop arriving.",
+            ),
+            DeclareLaunchArgument(
                 "log_telemetry",
                 default_value="false",
                 description="Log Dynamixel PWM/load/voltage/position telemetry to CSV.",
@@ -115,6 +130,15 @@ def generate_launch_description():
                         ),
                         "enable_trajectory_commands": LaunchConfiguration(
                             "enable_trajectory_commands"
+                        ),
+                        "enable_velocity_commands": LaunchConfiguration(
+                            "enable_velocity_commands"
+                        ),
+                        "max_wheel_velocity_rad_s": LaunchConfiguration(
+                            "max_wheel_velocity_rad_s"
+                        ),
+                        "wheel_command_timeout_sec": LaunchConfiguration(
+                            "wheel_command_timeout_sec"
                         ),
                         "log_telemetry": LaunchConfiguration("log_telemetry"),
                         "telemetry_log_path": LaunchConfiguration(

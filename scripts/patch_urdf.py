@@ -170,6 +170,18 @@ def patch_joint_limits_and_dynamics(content):
     )
     content = re.sub(pattern_revolute, replacement_revolute, content)
 
+    # The shoulder link mechanically interferes beyond about 25 degrees backward.
+    shoulder_pattern = (
+        r'(<joint\s+name="arm_shoulder_pitch_jnt".*?<limit\s+lower=")'
+        r'-3\.14159(")'
+    )
+    content = re.sub(
+        shoulder_pattern,
+        r'\g<1>-0.436332\g<2>',
+        content,
+        flags=re.DOTALL,
+    )
+
     # 2. Continuous 관절은 limit이 아예 없으므로 </joint> 앞에 삽입
     def replace_continuous(match):
         joint_body = match.group(0)

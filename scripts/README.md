@@ -16,6 +16,14 @@ OP3 walking module 기반의 12자유도 다리 보행 엔진입니다. 계산�
 ros2 run biped_bike_robot op3_walker.py
 ```
 
+워커는 현재 실물 자세에서 보행 시작 자세까지 기본 3초 동안 부드럽게
+이동한 뒤 첫 스텝을 시작합니다. 이 시간은 보행 슬로모션 배율과 별개입니다.
+
+```bash
+ros2 run biped_bike_robot op3_walker.py --ros-args \
+  -p startup_duration_sec:=3.0
+```
+
 ### 실기에서 잘 걷는 검증 보정값
 
 아래 조합은 실제 하드웨어에서 보행이 잘 되는 것으로 확인한 보정값입니다.
@@ -38,6 +46,7 @@ ros2 run biped_bike_robot op3_walker.py --ros-args \
 - `support_ankle_roll_lift_deg`: 지지발 발목/발 롤로 바닥 반력을 보정합니다.
 - `pelvis_pitch_forward_lift_deg`: 실기에서 골반 면이 뒤로 눕는 문제를 보정하기 위해, 발이 나가는 동안 골반 면을 앞으로 숙입니다.
 - `trajectory_time_scale`: 같은 궤적을 느리게 재생합니다. 위 조합은 5배 느린 재생입니다.
+- `startup_duration_sec`: 현재 자세에서 워커 시작 자세로 이동하는 시간입니다. 기본값은 3초이며 `trajectory_time_scale`의 영향을 받지 않습니다.
 - 보행 끝에는 별도의 복귀 스텝을 만들지 않습니다. 요청한 사이클 수만큼 걷고 마지막 자세를 유지하므로, 발 방향이 바뀌는 어색한 마무리 동작을 피할 수 있습니다.
 
 자주 쓰는 파라미터:
@@ -102,17 +111,39 @@ ros2 run biped_bike_robot op3_walker.py --ros-args \
 ros2 run biped_bike_robot ready_posture.py
 ```
 
+현재 자세에서 레디 자세까지 기본 3초 동안 선형 보간합니다. 시간을 바꾸려면:
+
+```bash
+ros2 run biped_bike_robot ready_posture.py --ros-args \
+  -p move_duration_sec:=4.0
+```
+
 ### `transform_bike.py`
 
 이족보행 모드에서 바이크 모드로 변형하는 시퀀스를 보냅니다.
+안정적으로 일어나는 `revert_bike.py`의 경로를 역순으로 사용하며, 몸통을
+접고 펴는 동안 어깨 관절을 기구 한계인 `-25도`(`-0.436332 rad`)로
+유지해 전방 낙하를 막습니다. 이 값보다 뒤로 가는 명령은 실물 브릿지와
+Gazebo URDF에서 모두 차단됩니다.
+마지막 단계에서만 기존 바이크 최종 어깨 자세 `0.26 rad`로 전환합니다.
 
 ```bash
 ros2 run biped_bike_robot transform_bike.py
 ```
 
+각 단계의 기본 시간은 3초입니다. Gazebo에서 더 느리게 확인하려면:
+
+```bash
+ros2 run biped_bike_robot transform_bike.py --ros-args \
+  -p stage_duration_sec:=5.0
+```
+
 ### `revert_bike.py`
 
 바이크 모드에서 다시 이족보행 모드로 돌아오는 시퀀스를 보냅니다.
+변신 코드와 공용 자세 정의를 사용하므로 두 경로는 서로 정확히 역순으로
+유지됩니다. 반복되는 어깨 값은 별도 제약이 아니라 지지 자세를 계속 유지하는
+위치 명령입니다.
 
 ```bash
 ros2 run biped_bike_robot revert_bike.py
@@ -132,6 +163,27 @@ ros2 run biped_bike_robot revert_bike.py
 ros2 run biped_bike_robot bike_teleop.py
 ```
 
+키 조작:
+
+- `w`: 전진 속도를 0.5 rad/s씩 증가
+- `s`: 감속 후 후진 속도를 0.5 rad/s씩 증가
+- `a`, `d`: 좌·우 회전 성분 조절
+- `q` 또는 `Space`: 즉시 정지
+- `Ctrl-C`: 정지 명령을 보낸 뒤 종료
+
+기본 최대 바퀴 속도는 `2.0 rad/s`입니다. 실물 브릿지는 ID 7과 14를
+velocity mode로 초기화하고 앞의 두 속도값을 전달합니다. 명령이 0.5초 이상
+끊기면 watchdog이 두 바퀴를 자동 정지합니다. 첫 시험은 로봇을 들어 바퀴가
+바닥에 닿지 않은 상태에서 `w`를 한 번만 눌러 방향을 확인합니다.
+
+더 낮은 속도로 텔레옵을 실행하려면:
+
+```bash
+ros2 run biped_bike_robot bike_teleop.py --ros-args \
+  -p speed_step:=0.25 \
+  -p max_wheel_speed:=1.0
+```
+
 ## 실기 브릿지
 
 ### `dxl_joint_state_bridge.py`
@@ -149,6 +201,9 @@ ROS 명령을 Dynamixel XL430 명령으로 변환하는 실기 브릿지입니�
 - URDF 기준 radian 값을 Dynamixel tick으로 변환합니다.
 - 위치 모터에는 `Goal Position`을 sync write합니다.
 - 옵션을 켜면 Dynamixel telemetry를 CSV로 기록합니다.
+- `JointTrajectory`의 점 사이를 8ms 주기로 선형 보간합니다. 첫 점은 모터의 현재 위치에서 시작하므로, 도착 시간까지 기다렸다가 목표로 한 번에 점프하지 않습니다.
+- 보행용 전역 명령 한도는 `max_abs_position_rad`를 사용하지만, 180도 회전이 필요한 `arm_base_yaw_jnt`는 하드웨어 YAML의 관절별 한도 `3.14159 rad`를 우선 적용합니다.
+- `/wheel_velocity_controller/commands`를 받아 두 실물 바퀴의 Goal Velocity에 sync write하고, 명령 timeout 시 속도를 0으로 만듭니다.
 
 브릿지는 보통 직접 실행하지 않고 `hardware_display.launch.py`로 실행합니다.
 

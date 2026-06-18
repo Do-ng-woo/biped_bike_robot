@@ -200,6 +200,7 @@ joints:
     operating_mode: 3
     center_tick: 2048
     direction: 1
+    max_abs_position_rad: 3.14159
     direction_checked: true
     active: true
 
@@ -210,6 +211,8 @@ joints:
     operating_mode: 3
     center_tick: 2048
     direction: 1
+    min_position_rad: -0.436332
+    max_position_rad: 3.14159
     direction_checked: true
     active: true
 

@@ -52,6 +52,11 @@ ros2 run biped_bike_robot op3_walker.py
 
 RViz, GUI, Dynamixel bridge를 함께 실행하는 실제 하드웨어 연동 런치입니다. OpenCR에는 `arduino/opencr_usb_to_dxl/opencr_usb_to_dxl.ino`가 올라가 있어야 하고, Dynamixel Wizard나 Arduino Serial Monitor가 `/dev/ttyACM0`을 잡고 있으면 안 됩니다.
 
+실기 브릿지는 `JointTrajectory`를 현재 모터 위치부터 8ms 주기로 선형
+보간합니다. 따라서 `ready_posture.py`의 3초 도착 시간과 워커의 시작 전환
+시간이 실제 모터에도 적용됩니다. 단, 아래의 `center_on_start` 중앙정렬은
+기존처럼 런치 직후 즉시 전송됩니다.
+
 기본 실행:
 
 ```bash
@@ -87,7 +92,19 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
 터미널 2:
 
 ```bash
+ros2 run biped_bike_robot ready_posture.py
+
 ros2 run biped_bike_robot op3_walker.py
+```
+
+첫 실물 검증은 로봇을 지지한 상태에서 다음처럼 한 사이클만 5배 느리게
+실행합니다.
+
+```bash
+ros2 run biped_bike_robot op3_walker.py --ros-args \
+  -p num_cycles:=1 \
+  -p trajectory_time_scale:=5.0 \
+  -p startup_duration_sec:=3.0
 ```
 
 ### 모터 로그 모드
@@ -157,6 +174,15 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
 - `enable_trajectory_commands`  
   기본값 `true`. walker/ready/transform 스크립트의 `JointTrajectory` 명령을 실제 모터로 보냅니다.
 
+- `enable_velocity_commands`  
+  기본값 `true`. bike teleop의 바퀴 속도 명령을 ID 7과 14에 전달합니다.
+
+- `max_wheel_velocity_rad_s`  
+  기본값 `2.0`. 실물 바퀴별 속도 명령의 절대 상한입니다.
+
+- `wheel_command_timeout_sec`  
+  기본값 `0.5`. 이 시간 동안 새 속도 명령이 없으면 두 바퀴를 자동 정지합니다.
+
 - `log_telemetry`  
   기본값 `false`. Dynamixel telemetry CSV 기록을 켭니다.
 
@@ -178,4 +204,3 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
 - `center_on_start`는 편하지만 시작 즉시 정자세 명령이 나갑니다.
 - Dynamixel Wizard, Arduino IDE Serial Monitor, 다른 ROS 노드가 같은 포트를 열면 브릿지가 실패합니다.
 - 로그 CSV는 커질 수 있으므로 기본 제한을 유지하고 필요한 모터만 `telemetry_motor_ids`로 골라 기록합니다.
-

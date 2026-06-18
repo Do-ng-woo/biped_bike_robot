@@ -10,6 +10,7 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectory
 
 try:
@@ -28,6 +29,7 @@ ADDR_TORQUE_ENABLE = 64
 ADDR_POSITION_D_GAIN = 80
 ADDR_POSITION_I_GAIN = 82
 ADDR_POSITION_P_GAIN = 84
+ADDR_GOAL_VELOCITY = 104
 ADDR_PROFILE_ACCELERATION = 108
 ADDR_PROFILE_VELOCITY = 112
 ADDR_GOAL_POSITION = 116
@@ -38,9 +40,44 @@ ADDR_PRESENT_POSITION = 132
 ADDR_PRESENT_INPUT_VOLTAGE = 144
 ADDR_PRESENT_TEMPERATURE = 146
 LEN_GOAL_POSITION = 4
+LEN_GOAL_VELOCITY = 4
 LEN_TELEMETRY_BLOCK = 23
 TORQUE_DISABLE = 0
 TORQUE_ENABLE = 1
+
+
+Trajectory = List[Tuple[float, Dict[str, float]]]
+
+
+def interpolate_trajectory(
+    start_positions: Dict[str, float],
+    trajectory: Trajectory,
+    elapsed: float,
+) -> Tuple[Dict[str, float], bool]:
+    """Linearly sample a trajectory, using the current pose as the t=0 point."""
+    if not trajectory:
+        return dict(start_positions), True
+
+    if elapsed >= trajectory[-1][0]:
+        return dict(trajectory[-1][1]), True
+
+    previous_time = 0.0
+    previous_positions = start_positions
+    for next_time, next_positions in trajectory:
+        if elapsed <= next_time:
+            duration = next_time - previous_time
+            alpha = 1.0 if duration <= 0.0 else (elapsed - previous_time) / duration
+            alpha = max(0.0, min(1.0, alpha))
+            sampled = {
+                name: previous_positions[name]
+                + alpha * (next_positions[name] - previous_positions[name])
+                for name in next_positions
+            }
+            return sampled, False
+        previous_time = next_time
+        previous_positions = next_positions
+
+    return dict(trajectory[-1][1]), True
 
 
 class MotorConfig:
@@ -53,6 +90,12 @@ class MotorConfig:
         self.direction = int(data.get("direction", 1))
         self.active = bool(data.get("active", True))
         self.tick_per_rad = tick_per_rad
+        self.min_position_rad = float(data.get("min_position_rad", -math.inf))
+        self.max_position_rad = float(data.get("max_position_rad", math.inf))
+        max_abs_position_rad = data.get("max_abs_position_rad")
+        self.max_abs_position_rad = (
+            None if max_abs_position_rad is None else float(max_abs_position_rad)
+        )
         self.pwm_limit = data.get("pwm_limit")
         self.position_p_gain = data.get("position_p_gain")
         self.position_i_gain = data.get("position_i_gain")
@@ -63,6 +106,21 @@ class MotorConfig:
     def position_to_tick(self, position_rad: float) -> int:
         tick = self.center_tick + self.direction * position_rad * self.tick_per_rad
         return int(round(max(0, min(4095, tick))))
+
+    def tick_to_position(self, tick: int) -> float:
+        return (tick - self.center_tick) / (self.direction * self.tick_per_rad)
+
+    def position_in_range(self, position_rad: float) -> bool:
+        return self.min_position_rad <= position_rad <= self.max_position_rad
+
+    def command_abs_limit(self, default_limit: float) -> float:
+        if self.max_abs_position_rad is not None:
+            return self.max_abs_position_rad
+        return default_limit
+
+    def velocity_to_raw(self, velocity_rad_s: float, raw_per_rad_s: float) -> int:
+        raw = round(self.direction * velocity_rad_s * raw_per_rad_s)
+        return max(-(2**31), min(2**31 - 1, raw))
 
 
 class DxlJointStateBridge(Node):
@@ -77,9 +135,15 @@ class DxlJointStateBridge(Node):
         self.declare_parameter("log_joint_states", True)
         self.declare_parameter("enable_joint_state_commands", True)
         self.declare_parameter("enable_trajectory_commands", True)
+        self.declare_parameter("enable_velocity_commands", True)
         self.declare_parameter(
             "trajectory_topic", "/joint_trajectory_controller/joint_trajectory"
         )
+        self.declare_parameter(
+            "velocity_topic", "/wheel_velocity_controller/commands"
+        )
+        self.declare_parameter("max_wheel_velocity_rad_s", 2.0)
+        self.declare_parameter("wheel_command_timeout_sec", 0.5)
         self.declare_parameter("log_telemetry", False)
         self.declare_parameter("telemetry_log_path", "")
         self.declare_parameter("telemetry_rate_hz", 5.0)
@@ -105,10 +169,20 @@ class DxlJointStateBridge(Node):
             ADDR_GOAL_POSITION,
             LEN_GOAL_POSITION,
         )
+        self.group_sync_write_velocity = GroupSyncWrite(
+            self.port_handler,
+            self.packet_handler,
+            ADDR_GOAL_VELOCITY,
+            LEN_GOAL_VELOCITY,
+        )
         self.group_sync_read = None
         self.last_goal_ticks: Dict[int, int] = {}
+        self.last_goal_velocities: Dict[int, int] = {}
+        self.last_velocity_command_time = None
+        self.velocity_watchdog_stopped = True
         self.received_joint_states = False
-        self.active_trajectory: List[Tuple[float, Dict[str, float]]] = []
+        self.active_trajectory: Trajectory = []
+        self.trajectory_start_positions: Dict[str, float] = {}
         self.trajectory_start_time = None
         self.telemetry_file = None
         self.telemetry_writer = None
@@ -122,10 +196,22 @@ class DxlJointStateBridge(Node):
         self.min_tick_change = (
             self.get_parameter("min_tick_change").get_parameter_value().integer_value
         )
+        self.max_wheel_velocity_rad_s = float(
+            self.get_parameter("max_wheel_velocity_rad_s").value
+        )
+        self.wheel_command_timeout_sec = float(
+            self.get_parameter("wheel_command_timeout_sec").value
+        )
+        self.velocity_raw_per_rad_s = float(
+            self.config["conversion"]["velocity_raw_per_rad_per_sec"]
+        )
 
         self.all_motors = self._load_active_motors()
         self.position_motors = [
             motor for motor in self.all_motors if motor.control_mode == "position"
+        ]
+        self.velocity_motors = [
+            motor for motor in self.all_motors if motor.control_mode == "velocity"
         ]
         self.joint_to_motor = {motor.joint_name: motor for motor in self.position_motors}
 
@@ -156,6 +242,19 @@ class DxlJointStateBridge(Node):
             )
             self.trajectory_timer = self.create_timer(0.008, self.trajectory_timer_callback)
 
+        if self.get_parameter("enable_velocity_commands").value:
+            velocity_topic = self.get_parameter("velocity_topic").value
+            self.velocity_subscription = self.create_subscription(
+                Float64MultiArray,
+                velocity_topic,
+                self.velocity_command_callback,
+                10,
+            )
+            self.velocity_watchdog_timer = self.create_timer(
+                0.1,
+                self.velocity_watchdog_callback,
+            )
+
         if self.get_parameter("log_telemetry").value:
             self._setup_telemetry_logger()
 
@@ -164,7 +263,11 @@ class DxlJointStateBridge(Node):
 
     def destroy_node(self):
         try:
-            for motor in self.position_motors:
+            if self.velocity_motors:
+                self._sync_write_goal_velocities(
+                    {motor: 0 for motor in self.velocity_motors}
+                )
+            for motor in self.all_motors:
                 self._write1(motor.id, ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
         finally:
             if self.telemetry_file is not None:
@@ -209,14 +312,19 @@ class DxlJointStateBridge(Node):
         self.get_logger().info(f"Opened Dynamixel bus {device} @ {baudrate}")
 
     def _configure_motors(self, torque_on_start: bool):
-        for motor in self.position_motors:
+        for motor in self.all_motors:
             self._write1(motor.id, ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
             self._write1(motor.id, ADDR_OPERATING_MODE, motor.operating_mode)
             self._apply_motor_tuning(motor)
+            if motor.control_mode == "velocity":
+                self._write4(motor.id, ADDR_GOAL_VELOCITY, 0)
             if torque_on_start:
                 self._write1(motor.id, ADDR_TORQUE_ENABLE, TORQUE_ENABLE)
         torque_state = "enabled" if torque_on_start else "disabled"
-        self.get_logger().info(f"Configured position motors, torque {torque_state}")
+        self.get_logger().info(
+            f"Configured {len(self.position_motors)} position and "
+            f"{len(self.velocity_motors)} velocity motors, torque {torque_state}"
+        )
 
     def _apply_motor_tuning(self, motor: MotorConfig):
         writes_2byte = (
@@ -273,10 +381,18 @@ class DxlJointStateBridge(Node):
 
             if not math.isfinite(position):
                 continue
-            if abs(position) > self.max_abs_position_rad:
+            command_limit = motor.command_abs_limit(self.max_abs_position_rad)
+            if abs(position) > command_limit:
                 self.get_logger().warn(
                     f"Skip {joint_name}: {position:.3f} rad exceeds "
-                    f"max_abs_position_rad={self.max_abs_position_rad:.3f}",
+                    f"command limit={command_limit:.3f} rad",
+                    throttle_duration_sec=1.0,
+                )
+                continue
+            if not motor.position_in_range(position):
+                self.get_logger().warn(
+                    f"Skip {joint_name}: {position:.3f} rad outside mechanical "
+                    f"range [{motor.min_position_rad:.3f}, {motor.max_position_rad:.3f}]",
                     throttle_duration_sec=1.0,
                 )
                 continue
@@ -294,8 +410,10 @@ class DxlJointStateBridge(Node):
                 )
 
     def trajectory_callback(self, msg: JointTrajectory):
-        trajectory = []
+        trajectory: Trajectory = []
         mapped_names = [name for name in msg.joint_names if name in self.joint_to_motor]
+        commanded_names = []
+        previous_time = -1.0
 
         for point in msg.points:
             positions = {}
@@ -309,13 +427,35 @@ class DxlJointStateBridge(Node):
             time_from_start = point.time_from_start.sec + (
                 point.time_from_start.nanosec * 1e-9
             )
+            if time_from_start < previous_time:
+                self.get_logger().error(
+                    "Rejected trajectory: time_from_start must be nondecreasing"
+                )
+                return
             trajectory.append((time_from_start, positions))
+            previous_time = time_from_start
+            for joint_name in positions:
+                if joint_name not in commanded_names:
+                    commanded_names.append(joint_name)
 
-        self.active_trajectory = trajectory
+        if not trajectory:
+            self.get_logger().warn("Ignored trajectory with no executable points")
+            return
+
+        start_positions = self._read_current_positions(commanded_names)
+        carried_positions = dict(start_positions)
+        normalized_trajectory: Trajectory = []
+        for time_from_start, positions in trajectory:
+            carried_positions.update(positions)
+            normalized_trajectory.append((time_from_start, dict(carried_positions)))
+
+        self.active_trajectory = normalized_trajectory
+        self.trajectory_start_positions = start_positions
         self.trajectory_start_time = self.get_clock().now()
         self.get_logger().warn(
             f"Received trajectory: {len(msg.points)} points, "
-            f"{len(mapped_names)} mapped joints, {len(trajectory)} executable points"
+            f"{len(mapped_names)} mapped joints, {len(trajectory)} executable points; "
+            "linear interpolation enabled"
         )
 
     def trajectory_timer_callback(self):
@@ -326,22 +466,104 @@ class DxlJointStateBridge(Node):
             self.get_clock().now() - self.trajectory_start_time
         ).nanoseconds * 1e-9
 
-        due_index = -1
-        for index, (time_from_start, _) in enumerate(self.active_trajectory):
-            if time_from_start <= elapsed:
-                due_index = index
-            else:
-                break
-
-        if due_index < 0:
-            return
-
-        _, positions = self.active_trajectory[due_index]
-        self.active_trajectory = self.active_trajectory[due_index + 1 :]
+        positions, finished = interpolate_trajectory(
+            self.trajectory_start_positions,
+            self.active_trajectory,
+            elapsed,
+        )
         self._send_position_map(positions, source="trajectory")
 
-        if not self.active_trajectory:
+        if finished:
+            self.active_trajectory = []
+            self.trajectory_start_positions = {}
+            self.trajectory_start_time = None
             self.get_logger().info("Finished trajectory playback")
+
+    def velocity_command_callback(self, msg: Float64MultiArray):
+        if len(msg.data) < len(self.velocity_motors):
+            self.get_logger().error(
+                f"Wheel command has {len(msg.data)} values, but "
+                f"{len(self.velocity_motors)} velocity motors are configured"
+            )
+            return
+
+        goal_velocities = {}
+        clamped = False
+        for motor, requested_velocity in zip(self.velocity_motors, msg.data):
+            velocity = float(requested_velocity)
+            if not math.isfinite(velocity):
+                velocity = 0.0
+            limited_velocity = max(
+                -self.max_wheel_velocity_rad_s,
+                min(self.max_wheel_velocity_rad_s, velocity),
+            )
+            clamped = clamped or limited_velocity != velocity
+            goal_velocities[motor] = motor.velocity_to_raw(
+                limited_velocity,
+                self.velocity_raw_per_rad_s,
+            )
+
+        self._sync_write_goal_velocities(goal_velocities)
+        self.last_velocity_command_time = self.get_clock().now()
+        self.velocity_watchdog_stopped = all(
+            raw_velocity == 0 for raw_velocity in goal_velocities.values()
+        )
+        if clamped:
+            self.get_logger().warn(
+                f"Clamped wheel command to ±{self.max_wheel_velocity_rad_s:.2f} rad/s",
+                throttle_duration_sec=1.0,
+            )
+
+    def velocity_watchdog_callback(self):
+        if self.last_velocity_command_time is None or self.velocity_watchdog_stopped:
+            return
+        elapsed = (
+            self.get_clock().now() - self.last_velocity_command_time
+        ).nanoseconds * 1e-9
+        if elapsed <= self.wheel_command_timeout_sec:
+            return
+
+        self._sync_write_goal_velocities(
+            {motor: 0 for motor in self.velocity_motors}
+        )
+        self.velocity_watchdog_stopped = True
+        self.get_logger().warn(
+            f"Wheel command timeout after {elapsed:.2f}s; stopped all wheels"
+        )
+
+    def _read_current_positions(self, joint_names: List[str]) -> Dict[str, float]:
+        positions = {}
+        for joint_name in joint_names:
+            motor = self.joint_to_motor[joint_name]
+            tick = self._read_present_position_tick(motor)
+            if tick is None:
+                tick = self.last_goal_ticks.get(motor.id, motor.center_tick)
+                self.get_logger().warn(
+                    f"Using last goal as interpolation start for {joint_name}",
+                    throttle_duration_sec=1.0,
+                )
+            positions[joint_name] = motor.tick_to_position(tick)
+        return positions
+
+    def _read_present_position_tick(self, motor: MotorConfig) -> Optional[int]:
+        tick, result, error = self.packet_handler.read4ByteTxRx(
+            self.port_handler,
+            motor.id,
+            ADDR_PRESENT_POSITION,
+        )
+        if result != COMM_SUCCESS:
+            self.get_logger().error(
+                f"DXL {motor.id} position read failed: "
+                f"{self.packet_handler.getTxRxResult(result)}"
+            )
+            return None
+        if error != 0:
+            self.get_logger().error(
+                f"DXL {motor.id} position packet error: "
+                f"{self.packet_handler.getRxPacketError(error)}"
+            )
+            return None
+        return int(tick)
 
     def _setup_telemetry_logger(self):
         if GroupSyncRead is None:
@@ -510,14 +732,23 @@ class DxlJointStateBridge(Node):
 
     def _send_position_map(self, positions: Dict[str, float], source: str):
         goal_ticks = {}
-        skipped = 0
+        global_limit_skipped = 0
 
         for joint_name, position in positions.items():
             motor = self.joint_to_motor.get(joint_name)
             if motor is None or not math.isfinite(position):
                 continue
-            if abs(position) > self.max_abs_position_rad:
-                skipped += 1
+            command_limit = motor.command_abs_limit(self.max_abs_position_rad)
+            if abs(position) > command_limit:
+                global_limit_skipped += 1
+                continue
+            if not motor.position_in_range(position):
+                self.get_logger().warn(
+                    f"Skipped {source} command for {joint_name}: {position:.3f} rad "
+                    f"outside mechanical range "
+                    f"[{motor.min_position_rad:.3f}, {motor.max_position_rad:.3f}]",
+                    throttle_duration_sec=1.0,
+                )
                 continue
 
             goal_tick = motor.position_to_tick(position)
@@ -526,10 +757,10 @@ class DxlJointStateBridge(Node):
                 continue
             goal_ticks[motor] = goal_tick
 
-        if skipped > 0:
+        if global_limit_skipped > 0:
             self.get_logger().warn(
-                f"Skipped {skipped} {source} joints over "
-                f"max_abs_position_rad={self.max_abs_position_rad:.3f}",
+                f"Skipped {global_limit_skipped} {source} joints over "
+                "their absolute command limits",
                 throttle_duration_sec=1.0,
             )
 
@@ -557,6 +788,26 @@ class DxlJointStateBridge(Node):
 
         for motor, goal_tick in goal_ticks.items():
             self.last_goal_ticks[motor.id] = goal_tick
+
+    def _sync_write_goal_velocities(self, goal_velocities: Dict[MotorConfig, int]):
+        self.group_sync_write_velocity.clearParam()
+
+        for motor, goal_velocity in goal_velocities.items():
+            param = int(goal_velocity).to_bytes(4, byteorder="little", signed=True)
+            if not self.group_sync_write_velocity.addParam(motor.id, list(param)):
+                self.get_logger().error(
+                    f"Failed to add DXL {motor.id} to velocity sync write"
+                )
+
+        result = self.group_sync_write_velocity.txPacket()
+        if result != COMM_SUCCESS:
+            self.get_logger().error(
+                f"Velocity sync write failed: {self.packet_handler.getTxRxResult(result)}"
+            )
+            return
+
+        for motor, goal_velocity in goal_velocities.items():
+            self.last_goal_velocities[motor.id] = goal_velocity
 
     def _write1(self, dxl_id: int, address: int, value: int):
         result, error = self.packet_handler.write1ByteTxRx(

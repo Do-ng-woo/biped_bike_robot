@@ -852,6 +852,7 @@ class OP3WalkerNode(Node):
         self.declare_parameter('hip_pitch_offset_deg', 12.0)
         self.declare_parameter('control_cycle', 0.008)
         self.declare_parameter('trajectory_time_scale', 1.0)
+        self.declare_parameter('startup_duration_sec', 3.0)
         self.declare_parameter('num_cycles', 1)
 
         # Walking parameters
@@ -926,6 +927,10 @@ class OP3WalkerNode(Node):
             0.1,
             float(self.get_parameter('trajectory_time_scale').value),
         )
+        self.startup_duration_sec = max(
+            0.1,
+            float(self.get_parameter('startup_duration_sec').value),
+        )
         self.num_cycles = max(1, int(self.get_parameter('num_cycles').value))
         self.get_logger().info(
             'Walking params: '
@@ -946,6 +951,7 @@ class OP3WalkerNode(Node):
             f'swing_ankle_pitch_lift_sign={param.swing_ankle_pitch_lift_sign:.1f}, '
             f'pelvis_pitch_forward_lift={math.degrees(param.pelvis_pitch_forward_lift):.2f}deg, '
             f'pelvis_pitch_forward_lift_sign={param.pelvis_pitch_forward_lift_sign:.1f}, '
+            f'startup_duration={self.startup_duration_sec:.2f}s, '
             f'time_scale={self.trajectory_time_scale:.2f}, '
             f'cycles={self.num_cycles}, steps={self.num_cycles * 2}'
         )
@@ -971,14 +977,14 @@ class OP3WalkerNode(Node):
         msg = JointTrajectory()
         msg.joint_names = self.joint_names
         
-        # 1) Init pose (go to ready in 2s)
+        # 1) Move continuously from the measured hardware pose to the gait init pose.
         self.engine._update_time_param()
         self.engine._update_movement_param()
         init_angles = self.engine.step(self.control_cycle)
         if init_angles is not None:
             p0 = JointTrajectoryPoint()
             p0.positions = init_angles.tolist()
-            p0.time_from_start = self._duration_from_seconds(2.0 * self.trajectory_time_scale)
+            p0.time_from_start = self._duration_from_seconds(self.startup_duration_sec)
             msg.points.append(p0)
         
         # 2) Start walking
@@ -987,7 +993,10 @@ class OP3WalkerNode(Node):
         
         total_time = self.engine.param.period_time * self.num_cycles
         t = 0.0
-        base_time = 3.0 * self.trajectory_time_scale  # start after ready pose settles
+        # trajectory_time_scale changes only the gait playback speed. The initial
+        # transition has its own fixed duration so slow-motion walking does not add
+        # a long idle delay before the first step.
+        base_time = self.startup_duration_sec
         point_count = 0
         
         while t < total_time:
