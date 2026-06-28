@@ -232,6 +232,3 @@ excluded_joints:
 
   - joint_name: arm_wrist_roll_jnt
     reason: No physical motor on hardware
-
-  - joint_name: arm_wheel_pitch__jnt
-    reason: End-effector motor not used on current hardware

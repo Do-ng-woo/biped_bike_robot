@@ -130,6 +130,9 @@ class DxlJointStateBridge(Node):
         self.declare_parameter("config_path", "")
         self.declare_parameter("torque_on_start", True)
         self.declare_parameter("center_on_start", False)
+        self.declare_parameter("startup_ready_posture_on_start", False)
+        self.declare_parameter("startup_forward_lean_deg", 5.0)
+        self.declare_parameter("startup_shoulder_pitch_deg", 20.0)
         self.declare_parameter("max_abs_position_rad", 0.35)
         self.declare_parameter("min_tick_change", 2)
         self.declare_parameter("log_joint_states", True)
@@ -221,6 +224,8 @@ class DxlJointStateBridge(Node):
         )
         if self.get_parameter("center_on_start").value:
             self._center_position_motors()
+        if self.get_parameter("startup_ready_posture_on_start").value:
+            self._send_startup_ready_posture()
 
         if self.get_parameter("enable_joint_state_commands").value:
             self.subscription = self.create_subscription(
@@ -364,6 +369,42 @@ class DxlJointStateBridge(Node):
             {motor: motor.center_tick for motor in self.position_motors}
         )
         self.get_logger().info("Sent center ticks to all position motors")
+
+    def _send_startup_ready_posture(self):
+        forward_lean = math.radians(
+            float(self.get_parameter("startup_forward_lean_deg").value)
+        )
+        shoulder_pitch = math.radians(
+            float(self.get_parameter("startup_shoulder_pitch_deg").value)
+        )
+        ready_positions = {
+            "l_hip_yaw_jnt": 0.0,
+            "l_hip_roll_jnt": 0.0,
+            "l_hip_pitch_jnt": -0.35 - forward_lean,
+            "l_knee_pitch_jnt": -0.70,
+            "l_ankle_pitch_jnt": 0.35,
+            "l_foot_roll_jnt": 0.0,
+            "r_hip_yaw_jnt": 0.0,
+            "r_hip_roll_jnt": 0.0,
+            "r_hip_pitch_jnt": 0.35 + forward_lean,
+            "r_knee_pitch_jnt": -0.70,
+            "r_ankle_pitch_jnt": 0.35,
+            "r_foot_roll_jnt": 0.0,
+            "arm_base_yaw_jnt": 0.0,
+            "arm_shoulder_pitch_jnt": shoulder_pitch,
+            "arm_elbow_pitch_jnt": 0.0,
+            "arm_wrist_pitch_jnt": 0.0,
+            "arm_wrist_roll_jnt": 0.0,
+        }
+        command_positions = {
+            motor.joint_name: ready_positions[motor.joint_name]
+            for motor in self.position_motors
+            if motor.joint_name in ready_positions
+        }
+        self.get_logger().warn(
+            "startup_ready_posture_on_start is true: sending forward-lean ready posture"
+        )
+        self._send_position_map(command_positions, source="startup_ready")
 
     def joint_state_callback(self, msg: JointState):
         if not self.received_joint_states:

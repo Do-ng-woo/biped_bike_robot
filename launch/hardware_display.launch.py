@@ -31,6 +31,21 @@ def generate_launch_description():
                 description="Send tick 2048 to all position motors when the bridge starts.",
             ),
             DeclareLaunchArgument(
+                "startup_ready_posture_on_start",
+                default_value="false",
+                description="Send a forward-lean ready posture to position motors when the bridge starts.",
+            ),
+            DeclareLaunchArgument(
+                "startup_forward_lean_deg",
+                default_value="5.0",
+                description="Additional hip pitch forward lean for startup ready posture.",
+            ),
+            DeclareLaunchArgument(
+                "startup_shoulder_pitch_deg",
+                default_value="20.0",
+                description="Shoulder pitch angle for startup ready posture.",
+            ),
+            DeclareLaunchArgument(
                 "max_abs_position_rad",
                 default_value="0.35",
                 description="Ignore GUI joint commands whose absolute position exceeds this limit.",
@@ -118,6 +133,15 @@ def generate_launch_description():
                         ),
                         "center_on_start": LaunchConfiguration(
                             "center_on_start"
+                        ),
+                        "startup_ready_posture_on_start": LaunchConfiguration(
+                            "startup_ready_posture_on_start"
+                        ),
+                        "startup_forward_lean_deg": LaunchConfiguration(
+                            "startup_forward_lean_deg"
+                        ),
+                        "startup_shoulder_pitch_deg": LaunchConfiguration(
+                            "startup_shoulder_pitch_deg"
                         ),
                         "max_abs_position_rad": LaunchConfiguration(
                             "max_abs_position_rad"

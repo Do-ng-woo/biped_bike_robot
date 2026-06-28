@@ -11,3 +11,7 @@ motor_logs/*.csv
 # OS
 .DS_Store
 Thumbs.db
+
+# CAD / mesh export files
+*.stl
+*.STL

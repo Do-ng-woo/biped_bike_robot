@@ -484,7 +484,8 @@ class OP3WalkingEngine:
         swing_foot_pitch_r = 0.0
         swing_ankle_pitch_l = 0.0
         swing_ankle_pitch_r = 0.0
-        pelvis_pitch_forward = 0.0
+        pelvis_pitch_forward_l = 0.0
+        pelvis_pitch_forward_r = 0.0
         
         t = self.time
         
@@ -570,7 +571,7 @@ class OP3WalkingEngine:
                 * self.swing_ankle_pitch_lift
                 * self._ssp_lift_profile(t, self.l_ssp_start_time, self.l_ssp_end_time)
             )
-            pelvis_pitch_forward = (
+            pelvis_pitch_forward_r = (
                 self.pelvis_pitch_forward_lift_sign
                 * self.pelvis_pitch_forward_lift
                 * self._ssp_lift_profile(t, self.l_ssp_start_time, self.l_ssp_end_time)
@@ -661,7 +662,7 @@ class OP3WalkingEngine:
                 * self.swing_ankle_pitch_lift
                 * self._ssp_lift_profile(t, self.r_ssp_start_time, self.r_ssp_end_time)
             )
-            pelvis_pitch_forward = (
+            pelvis_pitch_forward_l = (
                 self.pelvis_pitch_forward_lift_sign
                 * self.pelvis_pitch_forward_lift
                 * self._ssp_lift_profile(t, self.r_ssp_start_time, self.r_ssp_end_time)
@@ -748,11 +749,13 @@ class OP3WalkingEngine:
         leg_angle[4] += JOINT_AXIS_DIR[4] * swing_ankle_pitch_r
         leg_angle[10] += JOINT_AXIS_DIR[10] * swing_ankle_pitch_l
         
-        # hip_pitch offset (forward lean) + 실기 골반 pitch 보정
+        # hip_pitch offset + SSP 중 지지발 hip pitch 보정.
+        # Left SSP: left foot swings, so only right support hip gets the dynamic pitch.
+        # Right SSP: right foot swings, so only left support hip gets the dynamic pitch.
         leg_angle[2] -= JOINT_AXIS_DIR[2] * self.hit_pitch_offset   # r_hip_pitch
         leg_angle[8] -= JOINT_AXIS_DIR[8] * self.hit_pitch_offset   # l_hip_pitch
-        leg_angle[2] -= JOINT_AXIS_DIR[2] * pelvis_pitch_forward
-        leg_angle[8] -= JOINT_AXIS_DIR[8] * pelvis_pitch_forward
+        leg_angle[2] -= JOINT_AXIS_DIR[2] * pelvis_pitch_forward_r
+        leg_angle[8] -= JOINT_AXIS_DIR[8] * pelvis_pitch_forward_l
         
         return leg_angle
     
@@ -834,7 +837,7 @@ class OP3WalkerNode(Node):
         self.declare_parameter('x_move_start_scale', 1.0)
         self.declare_parameter('x_move_ramp_per_cycle', 0.0)
         self.declare_parameter('x_move_amplitude', -0.020)
-        self.declare_parameter('z_move_amplitude', 0.070)
+        self.declare_parameter('z_move_amplitude', 0.050)
         self.declare_parameter('y_swap_amplitude', -0.047)
         self.declare_parameter('pelvis_offset_deg', 0.0)
         self.declare_parameter('support_hip_roll_lift_deg', 10.0)
@@ -850,6 +853,7 @@ class OP3WalkerNode(Node):
         self.declare_parameter('init_x_offset', -0.020)
         self.declare_parameter('init_z_offset', 0.025)
         self.declare_parameter('hip_pitch_offset_deg', 12.0)
+        self.declare_parameter('arm_shoulder_pitch_deg', 20.0)
         self.declare_parameter('control_cycle', 0.008)
         self.declare_parameter('trajectory_time_scale', 1.0)
         self.declare_parameter('startup_duration_sec', 3.0)
@@ -932,6 +936,9 @@ class OP3WalkerNode(Node):
             float(self.get_parameter('startup_duration_sec').value),
         )
         self.num_cycles = max(1, int(self.get_parameter('num_cycles').value))
+        self.arm_shoulder_pitch = math.radians(
+            float(self.get_parameter('arm_shoulder_pitch_deg').value)
+        )
         self.get_logger().info(
             'Walking params: '
             f'period={param.period_time:.3f}s, x={param.x_move_amplitude:.3f}m, '
@@ -953,6 +960,7 @@ class OP3WalkerNode(Node):
             f'pelvis_pitch_forward_lift_sign={param.pelvis_pitch_forward_lift_sign:.1f}, '
             f'startup_duration={self.startup_duration_sec:.2f}s, '
             f'time_scale={self.trajectory_time_scale:.2f}, '
+            f'arm_shoulder={math.degrees(self.arm_shoulder_pitch):.2f}deg, '
             f'cycles={self.num_cycles}, steps={self.num_cycles * 2}'
         )
         
@@ -966,6 +974,12 @@ class OP3WalkerNode(Node):
             sec += 1
             nanosec -= 1_000_000_000
         return Duration(sec=sec, nanosec=nanosec)
+
+    def _with_arm_posture(self, angles) -> list:
+        positions = angles.tolist()
+        positions[13] = self.arm_shoulder_pitch
+        positions[14] = 0.0
+        return positions
     
     def generate_trajectory(self):
         self.timer.cancel()
@@ -983,7 +997,7 @@ class OP3WalkerNode(Node):
         init_angles = self.engine.step(self.control_cycle)
         if init_angles is not None:
             p0 = JointTrajectoryPoint()
-            p0.positions = init_angles.tolist()
+            p0.positions = self._with_arm_posture(init_angles)
             p0.time_from_start = self._duration_from_seconds(self.startup_duration_sec)
             msg.points.append(p0)
         
@@ -998,13 +1012,15 @@ class OP3WalkerNode(Node):
         # a long idle delay before the first step.
         base_time = self.startup_duration_sec
         point_count = 0
+        last_angles = None
         
         while t < total_time:
             angles = self.engine.step(self.control_cycle)
             if angles is not None:
+                last_angles = angles
                 point = JointTrajectoryPoint()
-                point.positions = angles.tolist()
-                abs_t = base_time + t * self.trajectory_time_scale
+                point.positions = self._with_arm_posture(angles)
+                abs_t = base_time + (t + self.control_cycle) * self.trajectory_time_scale
                 point.time_from_start = self._duration_from_seconds(abs_t)
                 msg.points.append(point)
                 point_count += 1
@@ -1016,12 +1032,12 @@ class OP3WalkerNode(Node):
         
         # Add one clean cycle-boundary point, then stop generating commands.
         # A cycle is left + right swing, so num_cycles=5 means 10 forward steps.
-        final_angles = self.engine.step(self.control_cycle)
+        final_angles = last_angles
         if final_angles is not None:
             point = JointTrajectoryPoint()
-            point.positions = final_angles.tolist()
+            point.positions = self._with_arm_posture(final_angles)
             point.time_from_start = self._duration_from_seconds(
-                base_time + total_time * self.trajectory_time_scale
+                base_time + (total_time + self.control_cycle) * self.trajectory_time_scale
             )
             msg.points.append(point)
             point_count += 1

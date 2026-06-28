@@ -12,6 +12,17 @@ JOINT_NAMES = (
 
 # Mechanical interference starts at roughly 25 degrees behind neutral.
 SHOULDER_BACK_LIMIT_RAD = -0.436332
+SHOULDER_UP_RAD = 0.349066
+HIP_PITCH_FOLD_LIMIT_RAD = 1.5708
+KNEE_PITCH_FOLD_LIMIT_RAD = -2.0944
+WRIST_PITCH_DOWN_RAD = -1.5708
+WRIST_PITCH_INDEX = JOINT_NAMES.index('arm_wrist_pitch_jnt')
+
+
+def with_wrist_pitch_down(positions):
+    updated = list(positions)
+    updated[WRIST_PITCH_INDEX] = WRIST_PITCH_DOWN_RAD
+    return tuple(updated)
 
 
 BIKE_SUPPORTED = (
@@ -25,19 +36,34 @@ LEGS_STRAIGHT_SUPPORTED = (
     3.14159, SHOULDER_BACK_LIMIT_RAD, 0.0, 0.0, 0.0,
 )
 FOLDED_SUPPORTED = (
-    0.0, 0.0, -1.8, -2.3, 1.3, 0.0,
-    0.0, 0.0, 1.8, -2.3, 1.3, 0.0,
+    0.0, 0.0, -HIP_PITCH_FOLD_LIMIT_RAD, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
+    0.0, 0.0, HIP_PITCH_FOLD_LIMIT_RAD, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
     3.14159, SHOULDER_BACK_LIMIT_RAD, 0.0, 0.0, 0.0,
 )
 DEEP_SQUAT_SUPPORTED = (
-    0.0, 0.0, -1.3, -2.3, 1.3, 0.0,
-    0.0, 0.0, 1.3, -2.3, 1.3, 0.0,
+    0.0, 0.0, -1.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
+    0.0, 0.0, 1.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
     3.14159, SHOULDER_BACK_LIMIT_RAD, 0.0, 0.0, 0.0,
 )
+BACK_SHIFT_SUPPORTED = (
+    0.0, 0.0, -0.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
+    0.0, 0.0, 0.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
+    3.14159, SHOULDER_BACK_LIMIT_RAD, 0.0, 0.0, 0.0,
+)
+DEEP_SQUAT_CLAW_PITCH_DOWN = (
+    0.0, 0.0, -1.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
+    0.0, 0.0, 1.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
+    3.14159, SHOULDER_BACK_LIMIT_RAD, 0.0, WRIST_PITCH_DOWN_RAD, 0.0,
+)
 DEEP_SQUAT_ARMS_NORMAL = (
-    0.0, 0.0, -1.3, -2.3, 1.3, 0.0,
-    0.0, 0.0, 1.3, -2.3, 1.3, 0.0,
+    0.0, 0.0, -1.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
+    0.0, 0.0, 1.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
     0.0, 0.0, 0.0, 0.0, 0.0,
+)
+DEEP_SQUAT_ARMS_UP = (
+    0.0, 0.0, -1.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
+    0.0, 0.0, 1.3, KNEE_PITCH_FOLD_LIMIT_RAD, 1.3, 0.0,
+    0.0, SHOULDER_UP_RAD, 0.0, 0.0, 0.0,
 )
 READY = (
     0.0, 0.0, -0.35, -0.70, 0.35, 0.0,
@@ -58,10 +84,19 @@ REVERT_SEQUENCE = (
     LEGS_STRAIGHT_SUPPORTED,
     FOLDED_SUPPORTED,
     DEEP_SQUAT_SUPPORTED,
+    BACK_SHIFT_SUPPORTED,
     DEEP_SQUAT_ARMS_NORMAL,
     READY,
 )
 
-# Ready -> bike: exact reverse of the stable revert path, followed by releasing
-# the support arm into the existing final bike pose.
-TRANSFORM_SEQUENCE = tuple(reversed(REVERT_SEQUENCE[:-1])) + (BIKE_FINAL,)
+# Ready -> bike. Lower the shoulder while the arm base yaw rotates to 180
+# degrees, then pitch the end gripper down and continue the fold.
+TRANSFORM_SEQUENCE = (
+    DEEP_SQUAT_ARMS_UP,
+    DEEP_SQUAT_SUPPORTED,
+    DEEP_SQUAT_CLAW_PITCH_DOWN,
+    with_wrist_pitch_down(FOLDED_SUPPORTED),
+    with_wrist_pitch_down(LEGS_STRAIGHT_SUPPORTED),
+    with_wrist_pitch_down(BIKE_SUPPORTED),
+    with_wrist_pitch_down(BIKE_FINAL),
+)

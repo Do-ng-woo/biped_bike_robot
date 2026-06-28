@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SolidWorks URDF 패치 스크립트 (ver3 대응)
+SolidWorks URDF 패치 스크립트 (ver5 대응)
 
 SolidWorks에서 익스포트한 원본 URDF를 ROS 2 + Gazebo 호환으로 패치합니다.
 
@@ -14,12 +14,13 @@ SolidWorks에서 익스포트한 원본 URDF를 ROS 2 + Gazebo 호환으로 패�
     3. urdf/ 와 meshes/ 에 결과 저장
     4. launch 파일, 제어 코드 등은 전혀 건드리지 않음
 
-ver3 변경사항:
+ver5 기준:
     - 다리: 6 DOF (hip_yaw 추가) — l/r_hip_yaw, l/r_hip_roll, l/r_hip_pitch,
       l/r_knee_pitch, l/r_ankle_pitch, l/r_foot_roll
     - 팔: 5 DOF — arm_base_yaw, arm_shoulder_pitch, arm_elbow_pitch,
       arm_wrist_pitch, arm_wrist_roll
-    - 패시브 휠: l/r_knee_pitch_wheel, arm_wheel_pitch_
+    - 구동 휠: l/r_knee_pitch_wheel
+    - 팔 끝 지지는 arm_wheel_pitch_ 조인트가 아니라 볼캐스터 구조
 """
 
 import os
@@ -44,10 +45,22 @@ OUTPUT_MESH_DIR = os.path.join(PKG_ROOT, "meshes")
 # 여기에 새로운 패치를 추가하면 다음 익스포트부터 자동 적용됩니다.
 
 # 고관절 롤 rpy 보정 (SolidWorks 좌표계 설정 문제)
-# ver3: joint 이름이 l_hip_roll, r_hip_roll 로 변경됨
+# joint 이름은 l_hip_roll, r_hip_roll 형식을 사용함
 HIP_ROLL_RPY_PATCHES = {
     "l_hip_roll": {"from": "0 -1.5708 0", "to": "0 -1.5708 3.14159"},
     "r_hip_roll": {"from": "0 -1.5708 0", "to": "0 -1.5708 3.14159"},
+}
+
+# 보행/ready 자세 코드가 기대하는 pitch 계열 ROS 양수 방향.
+# dynamixel_hardware.yaml의 direction은 모터 tick 변환 부호이고, URDF axis와
+# 기준이 다르므로 여기서는 Gazebo/ros2_control 조인트 명령 기준으로 고정한다.
+JOINT_AXIS_PATCHES = {
+    "l_hip_pitch": "0 0 1",
+    "l_knee_pitch": "0 0 -1",
+    "l_ankle_pitch": "0 0 -1",
+    "r_hip_pitch": "0 0 -1",
+    "r_knee_pitch": "0 0 -1",
+    "r_ankle_pitch": "0 0 -1",
 }
 
 
@@ -102,7 +115,7 @@ def patch_crlf(content):
 
 def patch_package_name(content):
     """[패치 2] package:// URI를 메인 패키지명으로 변경"""
-    # package://어쩌구_ver3/meshes/ → package://biped_bike_robot/meshes/
+    # package://어쩌구/meshes/ → package://biped_bike_robot/meshes/
     return re.sub(
         r'package://[^/]+/meshes/',
         f'package://{PACKAGE_NAME}/meshes/',
@@ -150,10 +163,23 @@ def patch_hip_roll_rpy(content):
     return content
 
 
+def patch_joint_axes(content):
+    """[패치 5] 하체 pitch 계열 joint axis를 하드웨어 기준으로 고정"""
+    for joint_base_name, axis_xyz in JOINT_AXIS_PATCHES.items():
+        joint_name = f"{joint_base_name}_jnt"
+        pattern = (
+            rf'(<joint\s+name="{re.escape(joint_name)}".*?'
+            rf'<axis\s+xyz=")[^"]+(")'
+        )
+        content = re.sub(pattern, rf'\g<1>{axis_xyz}\g<2>', content, flags=re.DOTALL)
+    return content
+
+
 def patch_joint_limits_and_dynamics(content):
-    """[패치 5] Dynamixel XL430-W250-T 모터 속성 및 동역학 적용
+    """[패치 6] Dynamixel XL430-W250-T 모터 속성 및 동역학 적용
     
     - effort: 1.5 (N.m), velocity: 6.38 (rad/s), 위치 범위: -pi ~ pi
+    - arm_shoulder_pitch_jnt만 별도 모터 기준 effort 4.1 적용
     - 시뮬레이션 안정성을 위한 dynamics (damping=0.1, friction=0.1) 추가
     """
     # 1. 기존 Revolute 관절의 limit 속성을 치환하고 dynamics 태그 추가
@@ -181,6 +207,16 @@ def patch_joint_limits_and_dynamics(content):
         content,
         flags=re.DOTALL,
     )
+    shoulder_effort_pattern = (
+        r'(<joint\s+name="arm_shoulder_pitch_jnt".*?<limit\b[^>]*?effort=")'
+        r'1\.5(")'
+    )
+    content = re.sub(
+        shoulder_effort_pattern,
+        r'\g<1>4.1\g<2>',
+        content,
+        flags=re.DOTALL,
+    )
 
     # 2. Continuous 관절은 limit이 아예 없으므로 </joint> 앞에 삽입
     def replace_continuous(match):
@@ -202,7 +238,7 @@ def patch_joint_limits_and_dynamics(content):
     return content
 
 def patch_self_collision(content):
-    """[패치 6] 가제보 내 링크 간 자가 충돌(Self-collision) 활성화
+    """[패치 7] 가제보 내 링크 간 자가 충돌(Self-collision) 활성화
     
     모든 <link name="..."> 태그에 해당하는 Gazebo <self_collide>true</self_collide> 속성 부여
     """
@@ -219,7 +255,7 @@ def patch_self_collision(content):
     return content
 
 def patch_ros2_control(content):
-    """[패치 7] ros2_control 제어기 및 Gazebo 플러그인 추가
+    """[패치 8] ros2_control 제어기 및 Gazebo 플러그인 추가
 
     모든 작동하는 관절(revolute, continuous)을 ros2_control 하드웨어 인터페이스로 등록하고,
     Gazebo Harmonic (gz_ros2_control) 시스템 플러그인을 활성화합니다.
@@ -234,10 +270,11 @@ def patch_ros2_control(content):
         '    </hardware>'
     ]
 
-    for joint_name, _ in joints:
+    for joint_name, joint_type in joints:
+        command_interface = "velocity" if joint_type == "continuous" else "position"
         ros2_control_xml.extend([
             f'    <joint name="{joint_name}">',
-            '      <command_interface name="position"/>',
+            f'      <command_interface name="{command_interface}"/>',
             '      <state_interface name="position">',
             '        <param name="initial_value">0.0</param>',
             '      </state_interface>',
@@ -283,7 +320,7 @@ def copy_meshes(mesh_files):
 
 def main():
     print("=" * 50)
-    print(f"🔧 SolidWorks URDF 패치 시작 (ver3)")
+    print(f"🔧 SolidWorks URDF 패치 시작 (ver5)")
     print(f"   원본: {EXPORT_DIR}")
     print(f"   출력: {PKG_ROOT}")
     print("=" * 50)
@@ -296,32 +333,37 @@ def main():
         content = f.read()
 
     # 패치 순서대로 적용
-    print("\n[1/7] CRLF → LF 변환...")
+    print("\n[1/8] CRLF → LF 변환...")
     content = patch_crlf(content)
     print("  ✅ 완료")
 
-    print("[2/7] package:// URI 변경...")
+    print("[2/8] package:// URI 변경...")
     content = patch_package_name(content)
     print(f"  ✅ → package://{PACKAGE_NAME}/meshes/")
 
-    print("[3/7] Joint 이름 충돌 해결 (_jnt 접미사)...")
+    print("[3/8] Joint 이름 충돌 해결 (_jnt 접미사)...")
     content = patch_joint_names(content)
     print("  ✅ 완료")
 
-    print("[4/7] 고관절 롤 rpy 보정...")
+    print("[4/8] 고관절 롤 rpy 보정...")
     content = patch_hip_roll_rpy(content)
     for name, patch in HIP_ROLL_RPY_PATCHES.items():
         print(f"  ✅ {name}: rpy {patch['from']} → {patch['to']}")
 
-    print("[5/7] 다이나믹셀 모터 속성 및 동역학 적용...")
+    print("[5/8] 하체 pitch joint axis를 보행/ready 코드 기준으로 보정...")
+    content = patch_joint_axes(content)
+    for name, axis_xyz in JOINT_AXIS_PATCHES.items():
+        print(f"  ✅ {name}: axis {axis_xyz}")
+
+    print("[6/8] 다이나믹셀 모터 속성 및 동역학 적용...")
     content = patch_joint_limits_and_dynamics(content)
     print("  ✅ limit, dynamics (XL430-W250-T) 추가 완료")
 
-    print("[6/7] 가제보 자가 충돌(Self-collide) 활성화...")
+    print("[7/8] 가제보 자가 충돌(Self-collide) 활성화...")
     content = patch_self_collision(content)
     print("  ✅ 모든 링크에 <self_collide>true</self_collide> 추가 완료")
 
-    print("[7/7] ros2_control 플러그인 추가...")
+    print("[8/8] ros2_control 플러그인 추가...")
     content = patch_ros2_control(content)
     print("  ✅ 컨트롤러 설정(hardware interface 및 plugin) 추가 완료")
 

@@ -37,7 +37,6 @@ joint_trajectory_controller:
       # Continuous joints (wheels) - 패시브, trajectory controller에서 제외
       # - l_knee_pitch_wheel_jnt
       # - r_knee_pitch_wheel_jnt
-      # - arm_wheel_pitch__jnt
     
     command_interfaces:
       - position
@@ -55,5 +54,4 @@ wheel_velocity_controller:
     joints:
       - l_knee_pitch_wheel_jnt
       - r_knee_pitch_wheel_jnt
-      - arm_wheel_pitch__jnt
     interface_name: velocity

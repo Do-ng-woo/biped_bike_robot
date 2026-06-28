@@ -89,21 +89,19 @@ class BikeTeleopNode(Node):
         cmd = Float64MultiArray()
         
         # Diff drive kinematics:
-        # We need to map [linear, angular] to [l_knee_wheel, r_knee_wheel, arm_wheel]
+        # Map [linear, angular] to [l_knee_wheel, r_knee_wheel].
         
         # Base kinematics (assumes same physical orientation)
         raw_l = self.linear_vel - self.angular_vel
         raw_r = self.linear_vel + self.angular_vel
-        raw_f = self.linear_vel
         
         # --- URDF Axis Correction (Final Flip) ---
         # 팀장님 피드백 반영: 전진/후진 및 좌/우 사출 방향을 완전히 반전시켰습니다.
-        # L_axis: 0 0 -1 | R_axis: 0 0 1 | Arm_axis: 0 0 -1
+        # L_axis: 0 0 -1 | R_axis: 0 0 1
         l_speed = raw_l * -1.0
         r_speed = raw_r * 1.0   
-        f_speed = raw_f * -1.0
         
-        cmd.data = [l_speed, r_speed, f_speed]
+        cmd.data = [l_speed, r_speed]
         self.publisher_.publish(cmd)
 
 def main(args=None):

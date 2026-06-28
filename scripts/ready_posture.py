@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import rclpy
+import math
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from builtin_interfaces.msg import Duration
@@ -8,9 +9,17 @@ class ReadyPosturePublisher(Node):
     def __init__(self):
         super().__init__('ready_posture_publisher')
         self.declare_parameter('move_duration_sec', 3.0)
+        self.declare_parameter('forward_lean_deg', 5.0)
+        self.declare_parameter('arm_shoulder_pitch_deg', 20.0)
         self.move_duration_sec = max(
             0.1,
             float(self.get_parameter('move_duration_sec').value),
+        )
+        self.forward_lean = math.radians(
+            float(self.get_parameter('forward_lean_deg').value)
+        )
+        self.arm_shoulder_pitch = math.radians(
+            float(self.get_parameter('arm_shoulder_pitch_deg').value)
         )
         self.publisher_ = self.create_publisher(
             JointTrajectory, 
@@ -54,12 +63,12 @@ class ReadyPosturePublisher(Node):
         # 고관절(Hip)과 발목(Ankle)이 각각 절반 각도인 20도 (0.35 rad)를 역방향으로 보상해줘야 합니다.
         
         # Left leg: hip_pitch axis Z(+1), knee axis Z(-1), ankle axis Z(-1)
-        l_hip_pitch = -0.35   # Z(+1): 음수 → 앞으로 기울임
+        l_hip_pitch = -0.35 - self.forward_lean  # Z(+1): 음수 → 앞으로 기울임
         l_knee = -0.70        # Z(-1): 음수 → 무릎 앞으로 굽힘
         l_ankle = 0.35        # Z(-1): 양수 → 발목 보상
         
         # Right leg: hip_pitch axis Z(-1), knee axis Z(-1), ankle axis Z(-1)
-        r_hip_pitch = 0.35    # Z(-1): 양수 → 앞으로 기울임
+        r_hip_pitch = 0.35 + self.forward_lean  # Z(-1): 양수 → 앞으로 기울임
         r_knee = -0.70        # Z(-1): 음수 → 무릎 앞으로 굽힘
         r_ankle = 0.35        # Z(-1): 양수 → 발목 보상
         
@@ -69,7 +78,7 @@ class ReadyPosturePublisher(Node):
             # Right leg: yaw, roll, pitch, knee, ankle, foot
             0.0, 0.0, r_hip_pitch, r_knee, r_ankle, 0.0,
             # Arm: base_yaw, shoulder, elbow, wrist_pitch, wrist_roll
-            0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, self.arm_shoulder_pitch, 0.0, 0.0, 0.0,
         ]
         
         # 브릿지가 현재 자세부터 이 목표까지 선형 보간합니다.
@@ -80,7 +89,9 @@ class ReadyPosturePublisher(Node):
         msg.points.append(point)
         self.publisher_.publish(msg)
         self.get_logger().info(
-            f'Published Ready Posture command ({self.move_duration_sec:.1f}s transition)'
+            f'Published Ready Posture command ({self.move_duration_sec:.1f}s transition, '
+            f'forward_lean={math.degrees(self.forward_lean):.1f}deg, '
+            f'shoulder={math.degrees(self.arm_shoulder_pitch):.1f}deg)'
         )
         self.timer.cancel()  # 한 번 보내고 타이머 정지
 

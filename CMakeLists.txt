@@ -30,6 +30,7 @@ install(PROGRAMS
   scripts/bike_teleop.py
   scripts/transform_bike_reverse.py
   scripts/dxl_joint_state_bridge.py
+  scripts/web_control.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

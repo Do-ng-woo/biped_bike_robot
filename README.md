@@ -1,6 +1,6 @@
 # 🤖 Biped Bike Robot — 로봇 구조 분석 문서
 
-> **biped_bike_robot_ver4** — SolidWorks에서 설계된 **이족보행 ↔ 3륜 차륜형 로봇 변환 시스템**  
+> **biped_bike_robot_ver5** — SolidWorks에서 설계된 **이족보행 ↔ 2구동 휠 + 볼캐스터 로봇 변환 시스템**  
 > ROS 2 Jazzy + Gazebo Harmonic 환경
 
 ### ✨ Ver.4 업데이트 특징 (Sim-to-Real 최적화)
@@ -15,7 +15,7 @@
 ### 1. 이족 보행 (Bipedal Walking)
 ![Bipedal Walking Demo](media/walking_demo.gif)
 
-### 2. 3륜 차륜형 변신 (Transform to Trike)
+### 2. 차륜형 변신 (Transform to Wheeled Mode)
 ![Transform to Trike](media/transform0506.gif)
 
 ### 3. 이족 보행 모드 복귀 (Reverse Transform)
@@ -48,14 +48,14 @@ base_link (골반/허리 프레임)
         ├── arm_elbow_pitch ── arm_elbow_pitch (팔꿈치 피치)
         │   └── arm_wrist_pitch ── arm_wrist_pitch (손목 피치)
         │       └── arm_wrist_roll ── arm_wrist_roll (손목 롤)
-        └── arm_wheel_pitch_ ── arm_wheel_pitch_ (팔 휠) 🔄
 ```
 
 > 🔄 = `continuous` 타입 (무한 회전 가능한 패시브 휠 관절)
+> ver5에서는 팔 끝 지지를 회전 휠 조인트가 아니라 볼캐스터 구조로 처리합니다.
 
 ---
 
-## 📊 링크 목록 (21개)
+## 📊 링크 목록 (20개)
 
 | # | 링크 이름 | 위치 | 질량 (kg) | 설명 |
 |---|-----------|------|-----------|------|
@@ -79,13 +79,11 @@ base_link (골반/허리 프레임)
 | 18 | `arm_elbow_pitch` | 상체 | 0.047 | 전완 (팔꿈치 피치) |
 | 19 | `arm_wrist_pitch` | 상체 | 0.020 | 손목 피치 |
 | 20 | `arm_wrist_roll` | 상체 | 0.039 | 손목 롤 / 엔드이펙터 |
-| 21 | `arm_wheel_pitch_` | 상체 | 0.012 | 팔 보조 휠 |
-
 > **총 질량**: 약 **1.845 kg** (Sim-to-Real 실측치 일치)
 
 ---
 
-## 🔩 관절 목록 (20개)
+## 🔩 관절 목록 (19개)
 
 ### 좌측 다리 (Left Leg) — 6 액추에이터 + 1 패시브
 
@@ -111,7 +109,7 @@ base_link (골반/허리 프레임)
 | 13 | `r_foot_roll` | revolute | Z(-) | r_ankle_pitch → r_foot_roll |
 | 14 | `r_knee_pitch_wheel` | **continuous** | Z(+) | r_knee_pitch → r_knee_pitch_wheel |
 
-### 상체 (Upper Body) — 5 액추에이터 + 1 패시브
+### 상체 (Upper Body) — 5 액추에이터
 
 | # | 관절 이름 | 타입 | 축 | 부모 → 자식 |
 |---|-----------|------|-----|-------------|
@@ -120,7 +118,6 @@ base_link (골반/허리 프레임)
 | 17 | `arm_elbow_pitch` | revolute | Z(+) | arm_shoulder_pitch → arm_elbow_pitch |
 | 18 | `arm_wrist_pitch` | revolute | Z(-) | arm_elbow_pitch → arm_wrist_pitch |
 | 19 | `arm_wrist_roll` | revolute | Z(-) | arm_wrist_pitch → arm_wrist_roll |
-| 20 | `arm_wheel_pitch_` | **continuous** | Z(-) | arm_shoulder_pitch → arm_wheel_pitch_ |
 
 ---
 
@@ -132,10 +129,9 @@ base_link (골반/허리 프레임)
 - 좌우 다리는 `base_link`에서 Y축 방향으로 오프셋 (좌: y=-0.01425, 우: y=-0.13925)
 - 고관절 롤(Roll)은 `rpy="0 -π/2 0"`로 90° 회전하여 측면 운동축을 구현
 
-### 2. 자전거 페달링을 위한 패시브 휠
-- `l_knee_pitch_wheel`, `r_knee_pitch_wheel`, `arm_wheel_pitch_` — 3개의 **continuous** 관절
-- 무릎 및 팔꿈치에 배치되어 자전거 크랭크/핸들과 접촉하는 보조 회전축
-- 토크 미지정 (패시브, 자유 회전)
+### 2. 차륜 모드를 위한 휠과 볼캐스터
+- `l_knee_pitch_wheel`, `r_knee_pitch_wheel` — 2개의 **continuous** 구동 휠 관절
+- 팔 끝 지지는 `arm_wheel_pitch_` 조인트 없이 볼캐스터 구조로 처리
 
 ### 3. 확장된 단일 팔 구조 (ver3 업데이트)
 - `arm_base_yaw` → `arm_shoulder_pitch` → `arm_elbow_pitch` → `arm_wrist_pitch` → `arm_wrist_roll`
@@ -160,7 +156,7 @@ biped_bike_robot/
 │   └── controllers.yaml         ← ros2_control 컨트롤러 설정
 ├── launch/
 │   └── gazebo.launch.py         ← Gazebo 시뮬레이션 런치
-├── meshes/                      ← 메시 파일 (21개 STL)
+├── meshes/                      ← 메시 파일 (20개 STL)
 │   ├── base_link.STL
 │   ├── l_hip_yaw.STL
 │   ├── l_hip_roll.STL
@@ -180,8 +176,7 @@ biped_bike_robot/
 │   ├── arm_shoulder_pitch.STL
 │   ├── arm_elbow_pitch.STL
 │   ├── arm_wrist_pitch.STL
-│   ├── arm_wrist_roll.STL
-│   └── arm_wheel_pitch_.STL
+│   └── arm_wrist_roll.STL
 ├── urdf/
 │   └── biped_bike_robot_ver.urdf  ← SolidWorks 내보내기 URDF (ver3)
 ├── scripts/
@@ -226,7 +221,6 @@ graph TD
     ASP -->|elbow_pitch| AEP["arm_elbow_pitch<br/>47g"]
     AEP -->|wrist_pitch| AWP["arm_wrist_pitch<br/>20g"]
     AWP -->|wrist_roll| AWR["arm_wrist_roll<br/>39g"]
-    ASP -.->|wheel| AW["arm_wheel_pitch_ 🔄<br/>12g"]
 
     style B fill:#4a90d9,color:#fff
     style LF fill:#2ecc71,color:#fff
@@ -234,7 +228,6 @@ graph TD
     style AWR fill:#e74c3c,color:#fff
     style LKW fill:#f39c12,color:#fff
     style RKW fill:#f39c12,color:#fff
-    style AW fill:#f39c12,color:#fff
 ```
 
 ---
@@ -243,8 +236,8 @@ graph TD
 
 | 항목 | ver2 | ver3 |
 |------|------|------|
-| 링크 수 | 18개 | **21개** |
-| 관절 수 | 17개 | **20개** |
+| 링크 수 | 18개 | **20개** |
+| 관절 수 | 17개 | **19개** |
 | 다리 DOF | 5 (Roll→Pitch→Knee→Ankle→Foot) | **6** (Yaw→Roll→Pitch→Knee→Ankle→Foot) |
 | 팔 DOF | 4 (Waist→Arm1→Arm2→EndEffector) | **5** (BaseYaw→Shoulder→Elbow→WristPitch→WristRoll) |
 | 총 질량 | ~0.934 kg | **~1.389 kg** |
