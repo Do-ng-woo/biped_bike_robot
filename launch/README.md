@@ -88,7 +88,7 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
   center_on_start:=false \
   startup_ready_posture_on_start:=true \
   startup_forward_lean_deg:=10.0 \
-  startup_shoulder_pitch_deg:=20.0 \
+  startup_shoulder_pitch_deg:=-70.0 \
   enable_joint_state_commands:=false \
   enable_trajectory_commands:=true
 ```
@@ -128,7 +128,7 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
   center_on_start:=false \
   startup_ready_posture_on_start:=true \
   startup_forward_lean_deg:=10.0 \
-  startup_shoulder_pitch_deg:=20.0 \
+  startup_shoulder_pitch_deg:=-70.0 \
   enable_joint_state_commands:=false \
   enable_trajectory_commands:=true
 ```
@@ -145,7 +145,7 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
   center_on_start:=false \
   startup_ready_posture_on_start:=true \
   startup_forward_lean_deg:=10.0 \
-  startup_shoulder_pitch_deg:=20.0 \
+  startup_shoulder_pitch_deg:=-70.0 \
   enable_joint_state_commands:=false \
   enable_trajectory_commands:=true
 ```
@@ -181,7 +181,7 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
   기본값 `5.0`. `startup_ready_posture_on_start`에서 좌우 hip pitch에 추가하는 전방 기울임입니다. 현재 실물 보행 기본 예시는 `10.0`을 사용합니다.
 
 - `startup_shoulder_pitch_deg`  
-  기본값 `20.0`. `startup_ready_posture_on_start`에서 어깨 pitch를 위로 들어 올리는 각도입니다. 팔꿈치 pitch는 0도로 유지합니다.
+  기본값 `-70.0`. `startup_ready_posture_on_start`에서 어깨 pitch를 뒤쪽으로 접어 유지하는 각도입니다. 팔꿈치 pitch는 0도로 유지합니다.
 
 - `max_abs_position_rad`  
   기본값 `0.35`. 이 절대값보다 큰 위치 명령은 무시합니다. OP3 walker 실기 보행에서는 보통 `2.2` 정도로 올립니다.

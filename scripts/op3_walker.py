@@ -853,7 +853,7 @@ class OP3WalkerNode(Node):
         self.declare_parameter('init_x_offset', -0.020)
         self.declare_parameter('init_z_offset', 0.025)
         self.declare_parameter('hip_pitch_offset_deg', 12.0)
-        self.declare_parameter('arm_shoulder_pitch_deg', 20.0)
+        self.declare_parameter('arm_shoulder_pitch_deg', -70.0)
         self.declare_parameter('control_cycle', 0.008)
         self.declare_parameter('trajectory_time_scale', 1.0)
         self.declare_parameter('startup_duration_sec', 3.0)

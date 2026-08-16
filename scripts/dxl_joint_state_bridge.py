@@ -132,7 +132,7 @@ class DxlJointStateBridge(Node):
         self.declare_parameter("center_on_start", False)
         self.declare_parameter("startup_ready_posture_on_start", False)
         self.declare_parameter("startup_forward_lean_deg", 5.0)
-        self.declare_parameter("startup_shoulder_pitch_deg", 20.0)
+        self.declare_parameter("startup_shoulder_pitch_deg", -70.0)
         self.declare_parameter("max_abs_position_rad", 0.35)
         self.declare_parameter("min_tick_change", 2)
         self.declare_parameter("log_joint_states", True)

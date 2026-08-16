@@ -31,7 +31,7 @@ HARDWARE_COMMAND = [
     "center_on_start:=false",
     "startup_ready_posture_on_start:=true",
     "startup_forward_lean_deg:=10.0",
-    "startup_shoulder_pitch_deg:=20.0",
+    "startup_shoulder_pitch_deg:=-70.0",
     "enable_joint_state_commands:=false",
     "enable_trajectory_commands:=true",
 ]

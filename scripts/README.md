@@ -70,7 +70,7 @@ ros2 run biped_bike_robot op3_walker.py --ros-args \
   -p swing_foot_pitch_lift_deg:=0.0 \
   -p swing_ankle_pitch_lift_deg:=0.0 \
   -p pelvis_pitch_forward_lift_deg:=5.0 \
-  -p arm_shoulder_pitch_deg:=20.0 \
+  -p arm_shoulder_pitch_deg:=-70.0 \
   -p trajectory_time_scale:=1.5
 ```
 
@@ -102,14 +102,14 @@ ros2 run biped_bike_robot op3_walker.py --ros-args \
 - `swing_ankle_pitch_lift_sign`: 스윙발 ankle pitch 직접 보정 방향입니다. 뒤꿈치가 더 끌리면 `-1.0`으로 바꿔 테스트합니다.
 - `pelvis_pitch_forward_lift_deg`: 실기 보정값입니다. 한쪽 발이 나가는 동안에만 지지발 hip pitch에 적용되는 보정 최대 각도입니다.
 - `pelvis_pitch_forward_lift_sign`: 골반 pitch 보정 방향입니다. 보정 후 골반이 더 뒤로 누우면 `-1.0`으로 바꿔 테스트합니다.
-- `arm_shoulder_pitch_deg`: 보행 중 유지할 어깨 pitch 각도입니다. 뒤쪽이 무거운 실물 기본값은 `20.0`이며, 팔꿈치 pitch는 0도로 유지합니다.
+- `arm_shoulder_pitch_deg`: 보행 중 유지할 어깨 pitch 각도입니다. 실물 기본값은 뒤쪽으로 접은 `-70.0`이며, 팔꿈치 pitch는 0도로 유지합니다.
 - `num_cycles`: 생성할 보행 주기 수입니다. 한 주기는 좌/우 2보이므로 `1`이면 2보, `5`이면 10보입니다.
 
 ## 준비 자세와 변신
 
 ### `ready_posture.py`
 
-보행 전 사용할 기본 준비 자세를 보냅니다. 무릎을 약간 굽히고, 뒤쪽이 무거운 실물 기준으로 hip pitch를 앞으로 5도 더 기울이며, 어깨 pitch를 20도 위로 들어 로봇을 안정적인 시작 자세로 정렬할 때 사용합니다. 팔꿈치 pitch는 0도로 유지합니다.
+보행 전 사용할 기본 준비 자세를 보냅니다. 무릎을 약간 굽히고, 뒤쪽이 무거운 실물 기준으로 hip pitch를 앞으로 5도 더 기울이며, 어깨 pitch를 뒤쪽으로 70도 접어 로봇을 안정적인 시작 자세로 정렬할 때 사용합니다. 팔꿈치 pitch는 0도로 유지합니다.
 
 ```bash
 ros2 run biped_bike_robot ready_posture.py
@@ -125,7 +125,7 @@ ros2 run biped_bike_robot ready_posture.py --ros-args \
 실물 기본 보정값:
 
 - `forward_lean_deg`: 기본값 `5.0`. 좌우 hip pitch에 추가하는 전방 기울임입니다.
-- `arm_shoulder_pitch_deg`: 기본값 `20.0`. ready/walker 중 어깨 pitch를 들어 유지하는 각도입니다. 팔꿈치 pitch는 0도로 유지합니다.
+- `arm_shoulder_pitch_deg`: 기본값 `-70.0`. ready/walker 중 어깨 pitch를 뒤쪽으로 접어 유지하는 각도입니다. 팔꿈치 pitch는 0도로 유지합니다.
 
 ### `transform_bike.py`
 
@@ -213,7 +213,7 @@ ROS 명령을 Dynamixel XL430 명령으로 변환하는 실기 브릿지입니�
 - `JointTrajectory`의 점 사이를 8ms 주기로 선형 보간합니다. 첫 점은 모터의 현재 위치에서 시작하므로, 도착 시간까지 기다렸다가 목표로 한 번에 점프하지 않습니다.
 - 보행용 전역 명령 한도는 `max_abs_position_rad`를 사용하지만, 180도 회전이 필요한 `arm_base_yaw_jnt`는 하드웨어 YAML의 관절별 한도 `3.14159 rad`를 우선 적용합니다.
 - `/wheel_velocity_controller/commands`를 받아 두 실물 바퀴의 Goal Velocity에 sync write하고, 명령 timeout 시 속도를 0으로 만듭니다.
-- `startup_ready_posture_on_start:=true`를 켜면 시작 시 hip pitch를 앞으로 더 기울인 ready 자세와 `startup_shoulder_pitch_deg` 어깨 각도를 바로 보냅니다. 실물 보행 기본값은 `startup_forward_lean_deg:=10.0`, `startup_shoulder_pitch_deg:=20.0`이며 팔꿈치 pitch는 0도입니다.
+- `startup_ready_posture_on_start:=true`를 켜면 시작 시 hip pitch를 앞으로 더 기울인 ready 자세와 `startup_shoulder_pitch_deg` 어깨 각도를 바로 보냅니다. 실물 보행 기본값은 `startup_forward_lean_deg:=10.0`, `startup_shoulder_pitch_deg:=-70.0`이며 팔꿈치 pitch는 0도입니다.
 
 브릿지는 보통 직접 실행하지 않고 `hardware_display.launch.py`로 실행합니다.
 
@@ -255,7 +255,7 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
   center_on_start:=false \
   startup_ready_posture_on_start:=true \
   startup_forward_lean_deg:=10.0 \
-  startup_shoulder_pitch_deg:=20.0 \
+  startup_shoulder_pitch_deg:=-70.0 \
   enable_joint_state_commands:=false \
   enable_trajectory_commands:=true
 ```

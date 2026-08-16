@@ -112,11 +112,33 @@ def test_physical_wheel_velocity_conversion_preserves_signed_commands():
     assert wheels[1].velocity_to_raw(1.0, raw_per_rad_s) == 42
 
 
-def test_transform_replays_stable_revert_path_in_reverse():
-    expected_reverse_path = tuple(reversed(sequence.REVERT_SEQUENCE[:-1]))
+def test_revert_restores_shoulder_before_arm_yaw_returns():
+    yaw_index = sequence.JOINT_NAMES.index("arm_base_yaw_jnt")
+    shoulder_index = sequence.JOINT_NAMES.index("arm_shoulder_pitch_jnt")
+    wrist_index = sequence.JOINT_NAMES.index("arm_wrist_pitch_jnt")
 
-    assert sequence.TRANSFORM_SEQUENCE[:-1] == expected_reverse_path
-    assert sequence.TRANSFORM_SEQUENCE[-1] == sequence.BIKE_FINAL
+    wrist_return_start = sequence.REVERT_SEQUENCE[5]
+    wrist_return_end = sequence.REVERT_SEQUENCE[6]
+    yaw_return_end = sequence.REVERT_SEQUENCE[7]
+    ready = sequence.REVERT_SEQUENCE[-1]
+
+    assert wrist_return_start[yaw_index] == pytest.approx(math.pi, abs=1e-5)
+    assert wrist_return_start[shoulder_index] == pytest.approx(
+        sequence.SHOULDER_YAWED_SUPPORT_RAD
+    )
+    assert wrist_return_start[wrist_index] == pytest.approx(
+        sequence.WRIST_PITCH_DOWN_RAD
+    )
+    assert wrist_return_end[yaw_index] == pytest.approx(math.pi, abs=1e-5)
+    assert wrist_return_end[shoulder_index] == pytest.approx(
+        sequence.SHOULDER_READY_RAD
+    )
+    assert wrist_return_end[wrist_index] == pytest.approx(0.0)
+    assert yaw_return_end[yaw_index] == pytest.approx(0.0)
+    assert yaw_return_end[shoulder_index] == pytest.approx(
+        sequence.SHOULDER_READY_RAD
+    )
+    assert ready[shoulder_index] == pytest.approx(sequence.SHOULDER_READY_RAD)
     assert all(
         len(point) == len(sequence.JOINT_NAMES)
         for point in sequence.REVERT_SEQUENCE + sequence.TRANSFORM_SEQUENCE
@@ -128,7 +150,7 @@ def test_transform_respects_shoulder_mechanical_back_limit():
     all_points = sequence.REVERT_SEQUENCE + sequence.TRANSFORM_SEQUENCE
 
     assert all(
-        point[shoulder_index] >= sequence.SHOULDER_BACK_LIMIT_RAD
+        point[shoulder_index] >= sequence.SHOULDER_YAWED_SUPPORT_RAD
         for point in all_points
     )
 
@@ -140,7 +162,7 @@ def test_transform_respects_shoulder_mechanical_back_limit():
         for joint in config["joints"]
         if joint["joint_name"] == "arm_shoulder_pitch_jnt"
     )
-    assert shoulder["min_position_rad"] == sequence.SHOULDER_BACK_LIMIT_RAD
+    assert shoulder["min_position_rad"] == sequence.SHOULDER_YAWED_SUPPORT_RAD
 
     urdf = (PACKAGE_ROOT / "urdf" / "biped_bike_robot.urdf").read_text(
         encoding="utf-8"
@@ -148,4 +170,4 @@ def test_transform_respects_shoulder_mechanical_back_limit():
     shoulder_joint = urdf.split('name="arm_shoulder_pitch_jnt"', 1)[1].split(
         "</joint>", 1
     )[0]
-    assert 'lower="-0.436332"' in shoulder_joint
+    assert 'lower="-2.0944"' in shoulder_joint

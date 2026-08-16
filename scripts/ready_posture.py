@@ -10,7 +10,7 @@ class ReadyPosturePublisher(Node):
         super().__init__('ready_posture_publisher')
         self.declare_parameter('move_duration_sec', 3.0)
         self.declare_parameter('forward_lean_deg', 5.0)
-        self.declare_parameter('arm_shoulder_pitch_deg', 20.0)
+        self.declare_parameter('arm_shoulder_pitch_deg', -70.0)
         self.move_duration_sec = max(
             0.1,
             float(self.get_parameter('move_duration_sec').value),

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SolidWorks URDF 패치 스크립트 (ver5 대응)
+SolidWorks URDF 패치 스크립트 (ver6 대응)
 
 SolidWorks에서 익스포트한 원본 URDF를 ROS 2 + Gazebo 호환으로 패치합니다.
 
@@ -14,7 +14,7 @@ SolidWorks에서 익스포트한 원본 URDF를 ROS 2 + Gazebo 호환으로 패�
     3. urdf/ 와 meshes/ 에 결과 저장
     4. launch 파일, 제어 코드 등은 전혀 건드리지 않음
 
-ver5 기준:
+ver6 기준:
     - 다리: 6 DOF (hip_yaw 추가) — l/r_hip_yaw, l/r_hip_roll, l/r_hip_pitch,
       l/r_knee_pitch, l/r_ankle_pitch, l/r_foot_roll
     - 팔: 5 DOF — arm_base_yaw, arm_shoulder_pitch, arm_elbow_pitch,
@@ -196,14 +196,16 @@ def patch_joint_limits_and_dynamics(content):
     )
     content = re.sub(pattern_revolute, replacement_revolute, content)
 
-    # The shoulder link mechanically interferes beyond about 25 degrees backward.
+    # Keep a 10 degree simulation margin beyond the -110 degree command. If the
+    # command and URDF lower limit are identical, Gazebo can lock the joint at
+    # the hard stop and fail to move it back toward the ready pose.
     shoulder_pattern = (
         r'(<joint\s+name="arm_shoulder_pitch_jnt".*?<limit\s+lower=")'
         r'-3\.14159(")'
     )
     content = re.sub(
         shoulder_pattern,
-        r'\g<1>-0.436332\g<2>',
+        r'\g<1>-2.0944\g<2>',
         content,
         flags=re.DOTALL,
     )
@@ -320,7 +322,7 @@ def copy_meshes(mesh_files):
 
 def main():
     print("=" * 50)
-    print(f"🔧 SolidWorks URDF 패치 시작 (ver5)")
+    print(f"🔧 SolidWorks URDF 패치 시작 (ver6)")
     print(f"   원본: {EXPORT_DIR}")
     print(f"   출력: {PKG_ROOT}")
     print("=" * 50)
