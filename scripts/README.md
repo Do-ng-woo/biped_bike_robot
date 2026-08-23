@@ -217,6 +217,133 @@ ROS 명령을 Dynamixel XL430 명령으로 변환하는 실기 브릿지입니�
 
 브릿지는 보통 직접 실행하지 않고 `hardware_display.launch.py`로 실행합니다.
 
+#### OpenCR IMU 데이터 형식과 강화학습 입력 기준
+
+현재 실제 로봇 제어 중 IMU는 OpenCR 내장 IMU를 사용합니다. OpenCR은 Dynamixel TTL 브리지 역할을 하면서, 가상 Dynamixel ID `200`으로 IMU 값을 응답합니다. PC 쪽 `dxl_joint_state_bridge.py`가 이 값을 읽어서 ROS 표준 메시지인 `sensor_msgs/Imu`로 변환해 `/opencr/imu`에 publish합니다.
+
+실행 경로:
+
+```bash
+ros2 launch biped_bike_robot hardware_display.launch.py \
+  enable_opencr_imu:=true \
+  enable_imu_tf:=true \
+  use_joint_state_gui:=false \
+  publish_present_joint_states:=true \
+  enable_joint_state_commands:=false \
+  enable_trajectory_commands:=true \
+  startup_ready_posture_on_start:=true \
+  center_on_start:=false
+```
+
+확인은 다음처럼 합니다.
+
+```bash
+ros2 topic echo /opencr/imu
+ros2 run tf2_ros tf2_echo world base_link
+```
+
+웹 컨트롤러의 하드웨어 ON 버튼도 위 설정을 기본으로 실행합니다.
+
+OpenCR 스케치 `arduino/opencr_dxl_bridge_with_imu/opencr_dxl_bridge_with_imu.ino`는 주소 `100`부터 `68 byte`짜리 IMU 블록을 만듭니다. PC에서는 Dynamixel Protocol 2.0 read로 이 블록을 읽습니다.
+
+| Offset | Type | 이름 | 단위/의미 |
+|---:|---|---|---|
+| 100 | `uint32` | `time_ms` | OpenCR 부팅 후 ms |
+| 104 | `float` | `qw` | OpenCR IMU quaternion w |
+| 108 | `float` | `qx` | OpenCR IMU quaternion x |
+| 112 | `float` | `qy` | OpenCR IMU quaternion y |
+| 116 | `float` | `qz` | OpenCR IMU quaternion z |
+| 120 | `float` | `roll_deg` | roll, degree |
+| 124 | `float` | `pitch_deg` | pitch, degree |
+| 128 | `float` | `yaw_deg` | yaw, degree |
+| 132 | `float` | `gyro_x_dps` | gyro x, degree/sec |
+| 136 | `float` | `gyro_y_dps` | gyro y, degree/sec |
+| 140 | `float` | `gyro_z_dps` | gyro z, degree/sec |
+| 144 | `float` | `acc_x_g` | accel x, g |
+| 148 | `float` | `acc_y_g` | accel y, g |
+| 152 | `float` | `acc_z_g` | accel z, g |
+| 156 | `int16` | `gyro_x_adc` | raw gyro x |
+| 158 | `int16` | `gyro_y_adc` | raw gyro y |
+| 160 | `int16` | `gyro_z_adc` | raw gyro z |
+| 162 | `int16` | `acc_x_adc` | raw accel x |
+| 164 | `int16` | `acc_y_adc` | raw accel y |
+| 166 | `int16` | `acc_z_adc` | raw accel z |
+
+PC 쪽에서는 이 블록을 다음 형식으로 unpack합니다.
+
+```python
+struct.unpack("<I13f6h", bytes(data))
+```
+
+`/opencr/imu`는 `sensor_msgs/Imu`입니다. 강화학습에서 ROS 토픽을 바로 쓰면 이 형식을 기준으로 받으면 됩니다.
+
+```text
+header.frame_id: body_link
+orientation: quaternion, x/y/z/w
+angular_velocity: rad/s
+linear_acceleration: m/s^2
+```
+
+변환 규칙은 다음과 같습니다.
+
+| ROS 필드 | 원본 OpenCR 값 | 변환 |
+|---|---|---|
+| `orientation.w/x/y/z` | `qw/qx/qy/qz` | 그대로 사용 |
+| `angular_velocity.x/y/z` | `gyro_*_dps` | `deg/s * pi / 180` |
+| `linear_acceleration.x/y/z` | `acc_*_g` | `g * 9.80665` |
+| `orientation_covariance` | 고정값 | 대각선 `0.0025` |
+| `angular_velocity_covariance` | 고정값 | 대각선 `0.02` |
+| `linear_acceleration_covariance` | 고정값 | 대각선 `0.04` |
+
+중요한 점은 `/opencr/imu`의 quaternion은 OpenCR 보드 기준 원본 자세라는 것입니다. 보드가 로봇 등 뒤에 수직으로 달려 있어서, 이 값을 그대로 쓰면 로봇의 roll/pitch/yaw 감각과 다르게 보입니다.
+
+로봇 기준 자세 시각화는 `imu_base_tf.py`가 담당합니다. 이 노드는 `/opencr/imu`를 받아서 `world -> base_link` TF를 publish합니다.
+
+| 파라미터 | 기본값 | 의미 |
+|---|---:|---|
+| `imu_mount_roll_deg` | `-90.0` | OpenCR 보드 장착 roll 보정 |
+| `imu_mount_pitch_deg` | `0.0` | 장착 pitch 보정 |
+| `imu_mount_yaw_deg` | `0.0` | 장착 yaw 보정 |
+| `imu_rpy_remap` | `YRp` | roll/pitch/yaw 축 재매핑. 대문자는 부호 반전 |
+| `imu_zero_yaw_on_start` | `true` | 켤 때 yaw를 정면 0으로 잡음 |
+| `imu_yaw_zero_samples` | `10` | 처음 10개 샘플 평균으로 yaw zero 계산 |
+| `imu_pivot_x/y/z` | `-0.066549, -0.076779, 0.018299` | base_link 중앙 기준 회전 pivot 보정 |
+
+즉 RViz와 웹 뷰어에서 로봇이 기울어지는 자세는 원본 `/opencr/imu`가 아니라 보정된 `/tf`의 `world -> base_link`를 보고 있습니다. 강화학습에서 로봇 몸통 기준 roll/pitch/yaw를 쓰고 싶으면 이 보정된 TF 또는 동일한 보정식을 적용한 quaternion을 쓰는 것이 안전합니다.
+
+강화학습 observation 추천:
+
+```text
+base_orientation_quat: [x, y, z, w]      # 보정된 world -> base_link quaternion 권장
+base_angular_velocity: [wx, wy, wz]      # /opencr/imu angular_velocity, rad/s
+base_linear_accel: [ax, ay, az]          # /opencr/imu linear_acceleration, m/s^2
+joint_position: 현재 /joint_states position
+joint_velocity: 현재 /joint_states velocity가 안정적으로 읽히면 사용
+```
+
+정책 입력으로 yaw 절대각이 필요 없으면 quaternion 대신 gravity vector를 body frame으로 회전한 값이나 roll/pitch만 쓰는 편이 더 안정적입니다. yaw는 시작할 때 `imu_zero_yaw_on_start:=true`로 0을 잡지만, 장시간 운용에서는 IMU yaw drift가 생길 수 있습니다.
+
+주의할 점:
+
+- `/opencr/imu`의 `linear_acceleration`에는 중력 성분이 포함됩니다. 서 있을 때도 한 축에 약 `9.8 m/s^2` 크기가 나오는 것이 정상입니다.
+- 로봇이 모터를 움직이는 중에도 IMU는 같은 OpenCR-Dynamixel 포트로 읽습니다. `enable_opencr_imu:=true`일 때 bridge가 주기적으로 가상 ID `200`을 읽기 때문에 로봇 동작과 동시에 사용할 수 있습니다.
+- IMU publish rate 기본값은 `30 Hz`입니다. 더 빠르게 읽으면 DXL 제어 주기와 버스 부하에 영향을 줄 수 있으니, RL 로깅은 처음에는 `30 Hz` 기준으로 맞추는 것이 좋습니다.
+- 실험 전에는 `ros2 topic hz /opencr/imu`로 실제 주기를 확인합니다.
+
+IMU 숫자 형식을 단독으로 보고 싶을 때만 `arduino/opencr_imu_stream/opencr_imu_stream.ino`를 올립니다. 이 모드는 USB serial에 CSV를 출력하므로 Dynamixel 제어와 동시에 쓰는 모드가 아닙니다.
+
+```bash
+python3 src/biped_bike_robot/scripts/opencr_imu_reader.py --port /dev/opencr --rows 20
+```
+
+CSV 컬럼은 다음 순서입니다.
+
+```text
+time_ms,qw,qx,qy,qz,roll_deg,pitch_deg,yaw_deg,gyro_x_dps,gyro_y_dps,gyro_z_dps,acc_x_g,acc_y_g,acc_z_g,gyro_x_adc,gyro_y_adc,gyro_z_adc,acc_x_adc,acc_y_adc,acc_z_adc
+```
+
+실제 로봇 제어로 돌아가려면 다시 `arduino/opencr_dxl_bridge_with_imu/opencr_dxl_bridge_with_imu.ino`를 OpenCR에 업로드해야 합니다.
+
 ### `web_control.py`
 
 실물 테스트용 로컬 웹 인터페이스입니다. 브라우저 버튼으로 하드웨어 브릿지를 켜고 끄거나, 검증된 보행/변신 명령을 실행합니다.
@@ -251,13 +378,14 @@ python3 src/biped_bike_robot/scripts/web_control.py
 
 ```bash
 ros2 launch biped_bike_robot hardware_display.launch.py \
-  max_abs_position_rad:=2.2 \
-  center_on_start:=false \
-  startup_ready_posture_on_start:=true \
-  startup_forward_lean_deg:=10.0 \
-  startup_shoulder_pitch_deg:=-70.0 \
+  enable_opencr_imu:=true \
+  enable_imu_tf:=true \
+  use_joint_state_gui:=false \
+  publish_present_joint_states:=true \
   enable_joint_state_commands:=false \
-  enable_trajectory_commands:=true
+  enable_trajectory_commands:=true \
+  startup_ready_posture_on_start:=true \
+  center_on_start:=false
 ```
 
 웹 패널의 `Run Walk` 명령:
