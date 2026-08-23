@@ -3,13 +3,14 @@ import csv
 import datetime as dt
 import math
 import os
+import struct
 from typing import Dict, List, Optional, Tuple
 
 import rclpy
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectory
 
@@ -26,6 +27,7 @@ except ImportError:
 ADDR_OPERATING_MODE = 11
 ADDR_PWM_LIMIT = 36
 ADDR_TORQUE_ENABLE = 64
+ADDR_HARDWARE_ERROR_STATUS = 70
 ADDR_POSITION_D_GAIN = 80
 ADDR_POSITION_I_GAIN = 82
 ADDR_POSITION_P_GAIN = 84
@@ -42,8 +44,22 @@ ADDR_PRESENT_TEMPERATURE = 146
 LEN_GOAL_POSITION = 4
 LEN_GOAL_VELOCITY = 4
 LEN_TELEMETRY_BLOCK = 23
+ADDR_OPENCR_IMU_BLOCK = 100
+LEN_OPENCR_IMU_BLOCK = 68
+STANDARD_GRAVITY = 9.80665
 TORQUE_DISABLE = 0
 TORQUE_ENABLE = 1
+READY_HIP_PITCH_RAD = 0.0
+READY_KNEE_PITCH_RAD = -0.30
+READY_ANKLE_FORWARD_OFFSET_RAD = 0.174533
+READY_ANKLE_PITCH_RAD = 0.15 + READY_ANKLE_FORWARD_OFFSET_RAD
+HARDWARE_ERROR_BITS = {
+    0: "input_voltage",
+    2: "overheating",
+    3: "motor_encoder",
+    4: "electrical_shock",
+    5: "overload",
+}
 
 
 Trajectory = List[Tuple[float, Dict[str, float]]]
@@ -129,9 +145,10 @@ class DxlJointStateBridge(Node):
 
         self.declare_parameter("config_path", "")
         self.declare_parameter("torque_on_start", True)
+        self.declare_parameter("torque_off_on_shutdown", True)
         self.declare_parameter("center_on_start", False)
         self.declare_parameter("startup_ready_posture_on_start", False)
-        self.declare_parameter("startup_forward_lean_deg", 5.0)
+        self.declare_parameter("startup_forward_lean_deg", 0.0)
         self.declare_parameter("startup_shoulder_pitch_deg", -70.0)
         self.declare_parameter("max_abs_position_rad", 0.35)
         self.declare_parameter("min_tick_change", 2)
@@ -152,6 +169,14 @@ class DxlJointStateBridge(Node):
         self.declare_parameter("telemetry_rate_hz", 5.0)
         self.declare_parameter("telemetry_duration_sec", 10.0)
         self.declare_parameter("telemetry_motor_ids", "")
+        self.declare_parameter("publish_present_joint_states", False)
+        self.declare_parameter("present_joint_state_topic", "/joint_states")
+        self.declare_parameter("present_joint_state_rate_hz", 15.0)
+        self.declare_parameter("enable_opencr_imu", False)
+        self.declare_parameter("opencr_imu_id", 200)
+        self.declare_parameter("opencr_imu_topic", "/opencr/imu")
+        self.declare_parameter("opencr_imu_frame_id", "body_link")
+        self.declare_parameter("opencr_imu_rate_hz", 30.0)
 
         if PacketHandler is None or PortHandler is None:
             raise RuntimeError(
@@ -192,6 +217,7 @@ class DxlJointStateBridge(Node):
         self.telemetry_start_time = None
         self.telemetry_duration_sec = 0.0
         self.telemetry_motors = []
+        self.opencr_imu_warned = False
 
         self.max_abs_position_rad = (
             self.get_parameter("max_abs_position_rad").get_parameter_value().double_value
@@ -227,7 +253,24 @@ class DxlJointStateBridge(Node):
         if self.get_parameter("startup_ready_posture_on_start").value:
             self._send_startup_ready_posture()
 
-        if self.get_parameter("enable_joint_state_commands").value:
+        publish_present_joint_states = bool(
+            self.get_parameter("publish_present_joint_states").value
+        )
+        present_joint_state_topic = self.get_parameter("present_joint_state_topic").value
+        if publish_present_joint_states:
+            self._setup_present_joint_state_publisher(present_joint_state_topic)
+
+        joint_state_commands_enabled = bool(
+            self.get_parameter("enable_joint_state_commands").value
+        )
+        if publish_present_joint_states and present_joint_state_topic == "/joint_states":
+            joint_state_commands_enabled = False
+            self.get_logger().warn(
+                "Disabled /joint_states command subscription because present "
+                "hardware joint states are being published on /joint_states"
+            )
+
+        if joint_state_commands_enabled:
             self.subscription = self.create_subscription(
                 JointState,
                 "/joint_states",
@@ -263,6 +306,9 @@ class DxlJointStateBridge(Node):
         if self.get_parameter("log_telemetry").value:
             self._setup_telemetry_logger()
 
+        if self.get_parameter("enable_opencr_imu").value:
+            self._setup_opencr_imu()
+
         names = ", ".join(m.joint_name for m in self.position_motors)
         self.get_logger().info(f"Configured Dynamixel position motors: {names}")
 
@@ -272,8 +318,14 @@ class DxlJointStateBridge(Node):
                 self._sync_write_goal_velocities(
                     {motor: 0 for motor in self.velocity_motors}
                 )
-            for motor in self.all_motors:
-                self._write1(motor.id, ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
+            if self.get_parameter("torque_off_on_shutdown").value:
+                for motor in self.all_motors:
+                    self._write1(motor.id, ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
+                self.get_logger().warn("Disabled Dynamixel torque on shutdown")
+            else:
+                self.get_logger().warn(
+                    "Keeping Dynamixel torque enabled on shutdown; wheels commanded to zero"
+                )
         finally:
             if self.telemetry_file is not None:
                 self.telemetry_file.close()
@@ -371,24 +423,21 @@ class DxlJointStateBridge(Node):
         self.get_logger().info("Sent center ticks to all position motors")
 
     def _send_startup_ready_posture(self):
-        forward_lean = math.radians(
-            float(self.get_parameter("startup_forward_lean_deg").value)
-        )
         shoulder_pitch = math.radians(
             float(self.get_parameter("startup_shoulder_pitch_deg").value)
         )
         ready_positions = {
             "l_hip_yaw_jnt": 0.0,
             "l_hip_roll_jnt": 0.0,
-            "l_hip_pitch_jnt": -0.35 - forward_lean,
-            "l_knee_pitch_jnt": -0.70,
-            "l_ankle_pitch_jnt": 0.35,
+            "l_hip_pitch_jnt": -READY_HIP_PITCH_RAD,
+            "l_knee_pitch_jnt": READY_KNEE_PITCH_RAD,
+            "l_ankle_pitch_jnt": READY_ANKLE_PITCH_RAD,
             "l_foot_roll_jnt": 0.0,
             "r_hip_yaw_jnt": 0.0,
             "r_hip_roll_jnt": 0.0,
-            "r_hip_pitch_jnt": 0.35 + forward_lean,
-            "r_knee_pitch_jnt": -0.70,
-            "r_ankle_pitch_jnt": 0.35,
+            "r_hip_pitch_jnt": READY_HIP_PITCH_RAD,
+            "r_knee_pitch_jnt": READY_KNEE_PITCH_RAD,
+            "r_ankle_pitch_jnt": READY_ANKLE_PITCH_RAD,
             "r_foot_roll_jnt": 0.0,
             "arm_base_yaw_jnt": 0.0,
             "arm_shoulder_pitch_jnt": shoulder_pitch,
@@ -606,6 +655,36 @@ class DxlJointStateBridge(Node):
             return None
         return int(tick)
 
+    def _setup_present_joint_state_publisher(self, topic: str):
+        self.present_joint_state_pub = self.create_publisher(JointState, topic, 10)
+        rate_hz = max(
+            1.0,
+            float(self.get_parameter("present_joint_state_rate_hz").value),
+        )
+        self.present_joint_state_timer = self.create_timer(
+            1.0 / rate_hz,
+            self.present_joint_state_callback,
+        )
+        self.get_logger().warn(
+            f"Publishing present Dynamixel joint states to {topic} at {rate_hz:.1f} Hz"
+        )
+
+    def present_joint_state_callback(self):
+        msg = JointState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+
+        for motor in self.all_motors:
+            tick = self._read_present_position_tick(motor)
+            if tick is None:
+                continue
+            msg.name.append(motor.joint_name)
+            msg.position.append(motor.tick_to_position(tick))
+            msg.velocity.append(0.0)
+            msg.effort.append(0.0)
+
+        if msg.name:
+            self.present_joint_state_pub.publish(msg)
+
     def _setup_telemetry_logger(self):
         if GroupSyncRead is None:
             raise RuntimeError(
@@ -642,6 +721,8 @@ class DxlJointStateBridge(Node):
                 "present_load_percent",
                 "voltage_v",
                 "temperature_c",
+                "hardware_error_status",
+                "hardware_error_flags",
             ]
         )
         self.telemetry_file.flush()
@@ -726,6 +807,16 @@ class DxlJointStateBridge(Node):
             temperature = self.group_sync_read.getData(
                 motor.id, ADDR_PRESENT_TEMPERATURE, 1
             )
+            hardware_error_status = self._read_hardware_error_status(motor.id)
+            hardware_error_flags = self._format_hardware_error_flags(
+                hardware_error_status
+            )
+            if hardware_error_status:
+                self.get_logger().error(
+                    f"DXL {motor.id} {motor.joint_name} hardware error "
+                    f"{hardware_error_status}: {hardware_error_flags}",
+                    throttle_duration_sec=1.0,
+                )
 
             goal_tick = self.last_goal_ticks.get(motor.id, "")
             position_error = ""
@@ -748,6 +839,8 @@ class DxlJointStateBridge(Node):
                     f"{present_load * 0.1:.3f}",
                     f"{voltage_raw * 0.1:.2f}",
                     temperature,
+                    hardware_error_status,
+                    hardware_error_flags,
                 ]
             )
         self.telemetry_file.flush()
@@ -763,6 +856,95 @@ class DxlJointStateBridge(Node):
         self.group_sync_read = None
         self.get_logger().info("Stopped Dynamixel telemetry logging")
 
+    def _setup_opencr_imu(self):
+        self.opencr_imu_id = int(self.get_parameter("opencr_imu_id").value)
+        self.opencr_imu_frame_id = self.get_parameter("opencr_imu_frame_id").value
+        topic = self.get_parameter("opencr_imu_topic").value
+        self.opencr_imu_pub = self.create_publisher(Imu, topic, 10)
+        rate_hz = max(1.0, float(self.get_parameter("opencr_imu_rate_hz").value))
+        self.opencr_imu_timer = self.create_timer(
+            1.0 / rate_hz,
+            self.opencr_imu_callback,
+        )
+        self.get_logger().warn(
+            f"OpenCR IMU enabled: reading virtual DXL ID {self.opencr_imu_id} "
+            f"at {rate_hz:.1f} Hz and publishing {topic}"
+        )
+
+    def opencr_imu_callback(self):
+        data, result, error = self.packet_handler.readTxRx(
+            self.port_handler,
+            self.opencr_imu_id,
+            ADDR_OPENCR_IMU_BLOCK,
+            LEN_OPENCR_IMU_BLOCK,
+        )
+        if result != COMM_SUCCESS or error != 0 or len(data) != LEN_OPENCR_IMU_BLOCK:
+            if not self.opencr_imu_warned:
+                result_text = (
+                    self.packet_handler.getTxRxResult(result)
+                    if result != COMM_SUCCESS
+                    else self.packet_handler.getRxPacketError(error)
+                )
+                self.get_logger().warn(
+                    "OpenCR IMU read failed. Upload "
+                    "arduino/opencr_dxl_bridge_with_imu/opencr_dxl_bridge_with_imu.ino "
+                    f"and keep enable_opencr_imu:=true. Detail: {result_text}"
+                )
+                self.opencr_imu_warned = True
+            return
+
+        (
+            _time_ms,
+            qw,
+            qx,
+            qy,
+            qz,
+            _roll_deg,
+            _pitch_deg,
+            _yaw_deg,
+            gyro_x_dps,
+            gyro_y_dps,
+            gyro_z_dps,
+            acc_x_g,
+            acc_y_g,
+            acc_z_g,
+            _gyro_x_adc,
+            _gyro_y_adc,
+            _gyro_z_adc,
+            _acc_x_adc,
+            _acc_y_adc,
+            _acc_z_adc,
+        ) = struct.unpack("<I13f6h", bytes(data))
+
+        msg = Imu()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.opencr_imu_frame_id
+        msg.orientation.w = float(qw)
+        msg.orientation.x = float(qx)
+        msg.orientation.y = float(qy)
+        msg.orientation.z = float(qz)
+        msg.orientation_covariance[0] = 0.0025
+        msg.orientation_covariance[4] = 0.0025
+        msg.orientation_covariance[8] = 0.0025
+
+        deg_to_rad = math.pi / 180.0
+        msg.angular_velocity.x = float(gyro_x_dps) * deg_to_rad
+        msg.angular_velocity.y = float(gyro_y_dps) * deg_to_rad
+        msg.angular_velocity.z = float(gyro_z_dps) * deg_to_rad
+        msg.angular_velocity_covariance[0] = 0.02
+        msg.angular_velocity_covariance[4] = 0.02
+        msg.angular_velocity_covariance[8] = 0.02
+
+        msg.linear_acceleration.x = float(acc_x_g) * STANDARD_GRAVITY
+        msg.linear_acceleration.y = float(acc_y_g) * STANDARD_GRAVITY
+        msg.linear_acceleration.z = float(acc_z_g) * STANDARD_GRAVITY
+        msg.linear_acceleration_covariance[0] = 0.04
+        msg.linear_acceleration_covariance[4] = 0.04
+        msg.linear_acceleration_covariance[8] = 0.04
+
+        self.opencr_imu_pub.publish(msg)
+        self.opencr_imu_warned = False
+
     def _sync_read_signed(self, dxl_id: int, address: int, length: int) -> int:
         value = self.group_sync_read.getData(dxl_id, address, length)
         bits = length * 8
@@ -770,6 +952,27 @@ class DxlJointStateBridge(Node):
         if value & sign_bit:
             value -= 1 << bits
         return value
+
+    def _read_hardware_error_status(self, dxl_id: int) -> int:
+        value, result, error = self.packet_handler.read1ByteTxRx(
+            self.port_handler,
+            dxl_id,
+            ADDR_HARDWARE_ERROR_STATUS,
+        )
+        if result != COMM_SUCCESS or error != 0:
+            return -1
+        return int(value)
+
+    @staticmethod
+    def _format_hardware_error_flags(status: int) -> str:
+        if status == 0:
+            return ""
+        if status < 0:
+            return "read_failed"
+        flags = [
+            name for bit, name in HARDWARE_ERROR_BITS.items() if status & (1 << bit)
+        ]
+        return "|".join(flags) if flags else f"unknown_bits_{status}"
 
     def _send_position_map(self, positions: Dict[str, float], source: str):
         goal_ticks = {}

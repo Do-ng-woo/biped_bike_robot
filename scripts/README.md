@@ -6,21 +6,21 @@
 
 ## 보행
 
-### `op3_walker.py`
+### `ik_walker.py`
 
-OP3 walking module 기반의 12자유도 다리 보행 엔진입니다. 계산된 17개 관절 목표를 `JointTrajectory`로 만들어 `/joint_trajectory_controller/joint_trajectory`에 publish합니다.
+12자유도 다리 보행 엔진입니다. 사인파 기반 발 궤적과 해석적 IK로 계산한 17개 관절 목표를 `JointTrajectory`로 만들어 `/joint_trajectory_controller/joint_trajectory`에 publish합니다.
 
 실행 예:
 
 ```bash
-ros2 run biped_bike_robot op3_walker.py
+ros2 run biped_bike_robot ik_walker.py
 ```
 
 워커는 현재 실물 자세에서 보행 시작 자세까지 기본 3초 동안 부드럽게
 이동한 뒤 첫 스텝을 시작합니다. 이 시간은 보행 슬로모션 배율과 별개입니다.
 
 ```bash
-ros2 run biped_bike_robot op3_walker.py --ros-args \
+ros2 run biped_bike_robot ik_walker.py --ros-args \
   -p startup_duration_sec:=3.0
 ```
 
@@ -29,7 +29,7 @@ ros2 run biped_bike_robot op3_walker.py --ros-args \
 아래 조합은 실제 하드웨어에서 보행이 잘 되는 것으로 확인한 보정값입니다.
 
 ```bash
-ros2 run biped_bike_robot op3_walker.py --ros-args \
+ros2 run biped_bike_robot ik_walker.py --ros-args \
   -p num_cycles:=1 \
   -p support_hip_roll_lift_deg:=20.0 \
   -p support_ankle_roll_lift_deg:=10.0 \
@@ -52,7 +52,7 @@ ros2 run biped_bike_robot op3_walker.py --ros-args \
 자주 쓰는 파라미터:
 
 ```bash
-ros2 run biped_bike_robot op3_walker.py --ros-args \
+ros2 run biped_bike_robot ik_walker.py --ros-args \
   -p z_move_amplitude:=0.070 \
   -p y_swap_amplitude:=-0.047 \
   -p x_move_amplitude:=-0.025 \
@@ -263,7 +263,7 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
 웹 패널의 `Run Walk` 명령:
 
 ```bash
-ros2 run biped_bike_robot op3_walker.py --ros-args \
+ros2 run biped_bike_robot ik_walker.py --ros-args \
   -p num_cycles:=1 \
   -p support_hip_roll_lift_deg:=20.0 \
   -p support_ankle_roll_lift_deg:=10.0 \

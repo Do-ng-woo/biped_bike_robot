@@ -19,7 +19,7 @@ def load_script(name):
 
 
 bridge = load_script("dxl_joint_state_bridge.py")
-walker = load_script("op3_walker.py")
+walker = load_script("ik_walker.py")
 sequence = load_script("bike_transform_sequence.py")
 
 
@@ -57,7 +57,7 @@ def test_walker_cycle_has_no_large_command_discontinuity():
     param.support_hip_roll_lift = math.radians(20.0)
     param.support_ankle_roll_lift = math.radians(10.0)
     param.pelvis_pitch_forward_lift = math.radians(30.0)
-    engine = walker.OP3WalkingEngine(param)
+    engine = walker.IKWalkerEngine(param)
     engine.start()
 
     samples = np.array(
@@ -91,7 +91,8 @@ def test_arm_base_yaw_can_override_walking_command_limit():
 
     assert motor.command_abs_limit(2.2) == pytest.approx(3.14159)
     assert motor.command_abs_limit(2.2) > math.radians(179.0)
-    assert motor.position_to_tick(3.14159) == 4095
+    assert motor.position_to_tick(3.14159) == 0
+    assert motor.position_to_tick(-3.14159) == 4095
 
 
 def test_physical_wheel_velocity_conversion_preserves_signed_commands():
@@ -114,6 +115,12 @@ def test_physical_wheel_velocity_conversion_preserves_signed_commands():
 
 def test_revert_restores_shoulder_before_arm_yaw_returns():
     yaw_index = sequence.JOINT_NAMES.index("arm_base_yaw_jnt")
+    left_hip_pitch_index = sequence.JOINT_NAMES.index("l_hip_pitch_jnt")
+    left_knee_pitch_index = sequence.JOINT_NAMES.index("l_knee_pitch_jnt")
+    left_ankle_pitch_index = sequence.JOINT_NAMES.index("l_ankle_pitch_jnt")
+    right_hip_pitch_index = sequence.JOINT_NAMES.index("r_hip_pitch_jnt")
+    right_knee_pitch_index = sequence.JOINT_NAMES.index("r_knee_pitch_jnt")
+    right_ankle_pitch_index = sequence.JOINT_NAMES.index("r_ankle_pitch_jnt")
     shoulder_index = sequence.JOINT_NAMES.index("arm_shoulder_pitch_jnt")
     wrist_index = sequence.JOINT_NAMES.index("arm_wrist_pitch_jnt")
 
@@ -122,6 +129,9 @@ def test_revert_restores_shoulder_before_arm_yaw_returns():
     yaw_return_end = sequence.REVERT_SEQUENCE[7]
     ready = sequence.REVERT_SEQUENCE[-1]
 
+    assert len(sequence.REVERT_SEQUENCE) == 10
+    assert sequence.REVERT_SEQUENCE[-1] == sequence.HARDWARE_READY
+    assert sequence.HARDWARE_READY == sequence.READY
     assert wrist_return_start[yaw_index] == pytest.approx(math.pi, abs=1e-5)
     assert wrist_return_start[shoulder_index] == pytest.approx(
         sequence.SHOULDER_YAWED_SUPPORT_RAD
@@ -138,7 +148,38 @@ def test_revert_restores_shoulder_before_arm_yaw_returns():
     assert yaw_return_end[shoulder_index] == pytest.approx(
         sequence.SHOULDER_READY_RAD
     )
+    assert yaw_return_end[left_hip_pitch_index] == pytest.approx(
+        -sequence.DEEP_SQUAT_HIP_PITCH_RAD + sequence.REVERT_HIP_BACK_OFFSET_RAD
+    )
+    assert yaw_return_end[right_hip_pitch_index] == pytest.approx(
+        sequence.DEEP_SQUAT_HIP_PITCH_RAD - sequence.REVERT_HIP_BACK_OFFSET_RAD
+    )
     assert ready[shoulder_index] == pytest.approx(sequence.SHOULDER_READY_RAD)
+    assert ready[left_hip_pitch_index] == pytest.approx(
+        -sequence.READY_HIP_PITCH_RAD - sequence.READY_HIP_FORWARD_OFFSET_RAD
+    )
+    assert ready[right_hip_pitch_index] == pytest.approx(
+        sequence.READY_HIP_PITCH_RAD + sequence.READY_HIP_FORWARD_OFFSET_RAD
+    )
+    assert ready[left_knee_pitch_index] == pytest.approx(
+        sequence.READY_KNEE_PITCH_RAD
+    )
+    assert ready[right_knee_pitch_index] == pytest.approx(
+        sequence.READY_KNEE_PITCH_RAD
+    )
+    assert ready[left_ankle_pitch_index] == pytest.approx(
+        sequence.READY_ANKLE_PITCH_RAD
+    )
+    assert ready[right_ankle_pitch_index] == pytest.approx(
+        sequence.READY_ANKLE_PITCH_RAD
+    )
+    assert sequence.READY_ANKLE_FORWARD_OFFSET_RAD == pytest.approx(
+        math.radians(10.0),
+        abs=1e-6,
+    )
+    assert sequence.READY_HIP_FORWARD_OFFSET_RAD == pytest.approx(
+        0.0
+    )
     assert all(
         len(point) == len(sequence.JOINT_NAMES)
         for point in sequence.REVERT_SEQUENCE + sequence.TRANSFORM_SEQUENCE
@@ -171,3 +212,16 @@ def test_transform_respects_shoulder_mechanical_back_limit():
         "</joint>", 1
     )[0]
     assert 'lower="-2.0944"' in shoulder_joint
+
+
+def test_startup_ready_ignores_forward_lean_parameter():
+    source = (
+        PACKAGE_ROOT / "scripts" / "dxl_joint_state_bridge.py"
+    ).read_text(encoding="utf-8")
+    startup_ready = source.split("def _send_startup_ready_posture", 1)[1].split(
+        "def joint_state_callback", 1
+    )[0]
+
+    assert 'get_parameter("startup_forward_lean_deg")' not in startup_ready
+    assert '"l_hip_pitch_jnt": -READY_HIP_PITCH_RAD' in startup_ready
+    assert '"r_hip_pitch_jnt": READY_HIP_PITCH_RAD' in startup_ready

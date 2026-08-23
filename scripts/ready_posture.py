@@ -5,11 +5,16 @@ from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from builtin_interfaces.msg import Duration
 
+READY_HIP_PITCH_RAD = 0.0
+READY_KNEE_PITCH_RAD = -0.30
+READY_ANKLE_FORWARD_OFFSET_RAD = 0.174533
+READY_ANKLE_PITCH_RAD = 0.15 + READY_ANKLE_FORWARD_OFFSET_RAD
+
 class ReadyPosturePublisher(Node):
     def __init__(self):
         super().__init__('ready_posture_publisher')
         self.declare_parameter('move_duration_sec', 3.0)
-        self.declare_parameter('forward_lean_deg', 5.0)
+        self.declare_parameter('forward_lean_deg', 0.0)
         self.declare_parameter('arm_shoulder_pitch_deg', -70.0)
         self.move_duration_sec = max(
             0.1,
@@ -57,20 +62,18 @@ class ReadyPosturePublisher(Node):
         
         point = JointTrajectoryPoint()
         
-        # [표준 동작] 무릎 굽히기 자세 (Ready Posture)
-        # 로봇이 엉거주춤하게 안정적으로 서 있기 위해 무릎을 약 40도 (0.7 rad) 굽힘.
-        # 발바닥이 땅에 수평으로 닿고, 허리가 꼿꼿이 서기 위해선 
-        # 고관절(Hip)과 발목(Ankle)이 각각 절반 각도인 20도 (0.35 rad)를 역방향으로 보상해줘야 합니다.
+        # [표준 동작] 얕은 무릎 굽힘 자세 (Ready Posture)
+        # ID 4 knee overload를 줄이기 위해 깊은 squat 대신 준직립 자세를 사용합니다.
         
         # Left leg: hip_pitch axis Z(+1), knee axis Z(-1), ankle axis Z(-1)
-        l_hip_pitch = -0.35 - self.forward_lean  # Z(+1): 음수 → 앞으로 기울임
-        l_knee = -0.70        # Z(-1): 음수 → 무릎 앞으로 굽힘
-        l_ankle = 0.35        # Z(-1): 양수 → 발목 보상
+        l_hip_pitch = -READY_HIP_PITCH_RAD - self.forward_lean  # Z(+1): 음수 → 앞으로 기울임
+        l_knee = READY_KNEE_PITCH_RAD        # Z(-1): 음수 → 무릎 앞으로 굽힘
+        l_ankle = READY_ANKLE_PITCH_RAD      # Z(-1): 양수 → 발목 보상
         
         # Right leg: hip_pitch axis Z(-1), knee axis Z(-1), ankle axis Z(-1)
-        r_hip_pitch = 0.35 + self.forward_lean  # Z(-1): 양수 → 앞으로 기울임
-        r_knee = -0.70        # Z(-1): 음수 → 무릎 앞으로 굽힘
-        r_ankle = 0.35        # Z(-1): 양수 → 발목 보상
+        r_hip_pitch = READY_HIP_PITCH_RAD + self.forward_lean  # Z(-1): 양수 → 앞으로 기울임
+        r_knee = READY_KNEE_PITCH_RAD        # Z(-1): 음수 → 무릎 앞으로 굽힘
+        r_ankle = READY_ANKLE_PITCH_RAD      # Z(-1): 양수 → 발목 보상
         
         point.positions = [
             # Left leg: yaw, roll, pitch, knee, ankle, foot

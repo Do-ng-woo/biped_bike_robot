@@ -27,7 +27,7 @@ ros2 launch biped_bike_robot display.launch.py
 
 ## `gazebo.launch.py`
 
-Gazebo에서 로봇과 `ros2_control` controller를 실행합니다. OP3 walker, ready posture, transform script를 시뮬레이션에서 먼저 검증할 때 사용합니다.
+Gazebo에서 로봇과 `ros2_control` controller를 실행합니다. IK walker, ready posture, transform script를 시뮬레이션에서 먼저 검증할 때 사용합니다.
 
 ```bash
 ros2 launch biped_bike_robot gazebo.launch.py
@@ -36,7 +36,7 @@ ros2 launch biped_bike_robot gazebo.launch.py
 보행 실행:
 
 ```bash
-ros2 run biped_bike_robot op3_walker.py
+ros2 run biped_bike_robot ik_walker.py
 ```
 
 실행 구성:
@@ -98,14 +98,14 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
 ```bash
 ros2 run biped_bike_robot ready_posture.py
 
-ros2 run biped_bike_robot op3_walker.py
+ros2 run biped_bike_robot ik_walker.py
 ```
 
 첫 실물 검증은 로봇을 지지한 상태에서 다음처럼 한 사이클만 5배 느리게
 실행합니다.
 
 ```bash
-ros2 run biped_bike_robot op3_walker.py --ros-args \
+ros2 run biped_bike_robot ik_walker.py --ros-args \
   -p num_cycles:=1 \
   -p trajectory_time_scale:=5.0 \
   -p startup_duration_sec:=3.0
@@ -184,7 +184,7 @@ ros2 launch biped_bike_robot hardware_display.launch.py \
   기본값 `-70.0`. `startup_ready_posture_on_start`에서 어깨 pitch를 뒤쪽으로 접어 유지하는 각도입니다. 팔꿈치 pitch는 0도로 유지합니다.
 
 - `max_abs_position_rad`  
-  기본값 `0.35`. 이 절대값보다 큰 위치 명령은 무시합니다. OP3 walker 실기 보행에서는 보통 `2.2` 정도로 올립니다.
+  기본값 `0.35`. 이 절대값보다 큰 위치 명령은 무시합니다. 실기 보행에서는 보통 `2.2` 정도로 올립니다.
 
 - `log_joint_states`  
   기본값 `true`. `/joint_states`에서 받은 joint 명령을 터미널에 출력합니다.
