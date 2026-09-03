@@ -13,7 +13,7 @@ IKWalkerNode (ROS 2)
 
 | Module | Role |
 |---|---|
-| `WalkingParam` | Walking stride, timing, lift height, and compensation parameters |
+| `WalkingParam` | Physical robot dimensions, stance, stride, timing, and lift parameters |
 | `IKWalkerEngine` | Sinusoidal gait phase generation and leg IK |
 | `analytical_ik_leg()` | 6-DOF leg inverse kinematics |
 | `IKWalkerNode` | ROS 2 publisher for `/joint_trajectory_controller/joint_trajectory` |
@@ -48,18 +48,29 @@ The gait cycle is split into four phases:
 ros2 run biped_bike_robot ik_walker.py
 ```
 
-Useful hardware-tested parameters:
+The hardware-tested gait is the default profile inside `WalkingParam`, so the
+web controller and direct execution use the same values. Only run-specific
+settings such as the number of cycles need to be supplied:
 
 ```bash
 ros2 run biped_bike_robot ik_walker.py --ros-args \
-  -p num_cycles:=1 \
-  -p support_hip_roll_lift_deg:=20.0 \
-  -p support_ankle_roll_lift_deg:=10.0 \
-  -p support_ankle_roll_lift_sign:=1.0 \
-  -p pelvis_pitch_forward_lift_deg:=30.0 \
-  -p pelvis_pitch_forward_lift_sign:=1.0 \
-  -p trajectory_time_scale:=4.0
+  -p num_cycles:=1
 ```
+
+The gait does not add hardware-only hip, ankle, or pelvis corrections after
+IK. Foot spacing, center-of-mass motion, and swing height are expressed as
+Cartesian foot targets and solved by the same IK path.
+
+The analytical IK and lateral `y_swap` path keep their original axis mapping.
+After IK, an independent hardware backlash correction adds left hip `-3` /
+ankle `+3` degrees and right hip `+3` / ankle `-3` degrees. Changing this
+correction therefore does not change the underlying IK trajectory or foot
+targets. After the last cycle, only this 3-degree correction is interpolated
+out over two seconds; the base IK roll remains intact.
+
+The default posture also adds 10 degrees of forward hip pitch after IK (left
+`-10`, right `+10` degrees in hardware command coordinates). This corrects the
+backward body lean without changing the foot targets or ankle pitch trajectory.
 
 ## References
 

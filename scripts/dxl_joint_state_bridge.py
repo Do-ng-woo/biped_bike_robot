@@ -118,6 +118,20 @@ class MotorConfig:
         self.position_d_gain = data.get("position_d_gain")
         self.profile_acceleration = data.get("profile_acceleration")
         self.profile_velocity = data.get("profile_velocity")
+        self.model = str(data.get("model", "unknown"))
+        self.effort_feedback = str(data.get("effort_feedback", "load"))
+        self.stall_torque_nm = float(data.get("stall_torque_nm", 1.4))
+        self.current_unit_a = float(data.get("current_unit_a", 0.00269))
+        self.stall_current_a = float(data.get("stall_current_a", 1.0))
+
+    def effort_telemetry(self, raw: int):
+        if self.effort_feedback == "current":
+            current_a = self.direction * raw * self.current_unit_a
+            torque_nm = current_a / self.stall_current_a * self.stall_torque_nm
+            return "", current_a, torque_nm
+        load_percent = self.direction * raw * 0.1
+        torque_nm = load_percent * 0.01 * self.stall_torque_nm
+        return load_percent, "", torque_nm
 
     def position_to_tick(self, position_rad: float) -> int:
         tick = self.center_tick + self.direction * position_rad * self.tick_per_rad
@@ -347,6 +361,11 @@ class DxlJointStateBridge(Node):
             if not joint.get("active", True):
                 continue
             for key in (
+                "model",
+                "effort_feedback",
+                "stall_torque_nm",
+                "current_unit_a",
+                "stall_current_a",
                 "pwm_limit",
                 "position_p_gain",
                 "position_i_gain",
@@ -710,6 +729,7 @@ class DxlJointStateBridge(Node):
                 "time_sec",
                 "id",
                 "joint_name",
+                "model",
                 "control_mode",
                 "goal_tick",
                 "present_position_tick",
@@ -717,8 +737,11 @@ class DxlJointStateBridge(Node):
                 "present_velocity_raw",
                 "present_pwm_raw",
                 "present_pwm_percent",
-                "present_load_raw",
+                "effort_feedback_type",
+                "effort_feedback_raw",
                 "present_load_percent",
+                "present_current_a",
+                "torque_est_nm",
                 "voltage_v",
                 "temperature_c",
                 "hardware_error_status",
@@ -798,7 +821,8 @@ class DxlJointStateBridge(Node):
                 continue
 
             present_pwm = self._sync_read_signed(motor.id, ADDR_PRESENT_PWM, 2)
-            present_load = self._sync_read_signed(motor.id, ADDR_PRESENT_LOAD, 2)
+            effort_raw = self._sync_read_signed(motor.id, ADDR_PRESENT_LOAD, 2)
+            load_percent, current_a, torque_nm = motor.effort_telemetry(effort_raw)
             present_velocity = self._sync_read_signed(motor.id, ADDR_PRESENT_VELOCITY, 4)
             present_position = self._sync_read_signed(motor.id, ADDR_PRESENT_POSITION, 4)
             voltage_raw = self.group_sync_read.getData(
@@ -828,6 +852,7 @@ class DxlJointStateBridge(Node):
                     f"{time_sec:.4f}",
                     motor.id,
                     motor.joint_name,
+                    motor.model,
                     motor.control_mode,
                     goal_tick,
                     present_position,
@@ -835,8 +860,11 @@ class DxlJointStateBridge(Node):
                     present_velocity,
                     present_pwm,
                     f"{present_pwm * 0.113:.3f}",
-                    present_load,
-                    f"{present_load * 0.1:.3f}",
+                    motor.effort_feedback,
+                    effort_raw,
+                    "" if load_percent == "" else f"{load_percent:.3f}",
+                    "" if current_a == "" else f"{current_a:.6f}",
+                    f"{torque_nm:.6f}",
                     f"{voltage_raw * 0.1:.2f}",
                     temperature,
                     hardware_error_status,

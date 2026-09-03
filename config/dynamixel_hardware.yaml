@@ -3,9 +3,14 @@ bus:
   baudrate: 1000000
   protocol_version: 2.0
   transport: ttl
-  model: XL430-W250
+  model: mixed
 
 defaults:
+  model: XL430-W250
+  effort_feedback: load
+  stall_torque_nm: 1.4
+  current_unit_a: 0.00269
+  stall_current_a: 1.0
   position_center_tick: 2048
   position_mode: 3
   velocity_mode: 1
@@ -77,11 +82,19 @@ joints:
     operating_mode: 3
     center_tick: 2048
     direction: 1
+    position_p_gain: 800
+    position_i_gain: 0
+    position_d_gain: 2400
     direction_checked: true
     active: true
 
   - id: 4
     joint_name: l_knee_pitch_jnt
+    model: XM430-W210-R
+    effort_feedback: current
+    stall_torque_nm: 3.0
+    stall_current_a: 2.3
+    no_load_speed_rpm: 77.0
     joint_type: revolute
     control_mode: position
     operating_mode: 3
@@ -97,11 +110,19 @@ joints:
     operating_mode: 3
     center_tick: 2048
     direction: -1
+    position_p_gain: 800
+    position_i_gain: 0
+    position_d_gain: 2400
     direction_checked: true
     active: true
 
   - id: 6
     joint_name: l_foot_roll_jnt
+    model: XM430-W210-R
+    effort_feedback: current
+    stall_torque_nm: 3.0
+    stall_current_a: 2.3
+    no_load_speed_rpm: 77.0
     joint_type: revolute
     control_mode: position
     operating_mode: 3
@@ -149,11 +170,19 @@ joints:
     operating_mode: 3
     center_tick: 2048
     direction: 1
+    position_p_gain: 800
+    position_i_gain: 0
+    position_d_gain: 2400
     direction_checked: true
     active: true
 
   - id: 11
     joint_name: r_knee_pitch_jnt
+    model: XM430-W210-R
+    effort_feedback: current
+    stall_torque_nm: 3.0
+    stall_current_a: 2.3
+    no_load_speed_rpm: 77.0
     joint_type: revolute
     control_mode: position
     operating_mode: 3
@@ -169,11 +198,19 @@ joints:
     operating_mode: 3
     center_tick: 2048
     direction: 1
+    position_p_gain: 800
+    position_i_gain: 0
+    position_d_gain: 2400
     direction_checked: true
     active: true
 
   - id: 13
     joint_name: r_foot_roll_jnt
+    model: XM430-W210-R
+    effort_feedback: current
+    stall_torque_nm: 3.0
+    stall_current_a: 2.3
+    no_load_speed_rpm: 77.0
     joint_type: revolute
     control_mode: position
     operating_mode: 3
@@ -206,6 +243,10 @@ joints:
 
   - id: 16
     joint_name: arm_shoulder_pitch_jnt
+    model: XM430-W350-R
+    effort_feedback: current
+    stall_torque_nm: 3.8
+    stall_current_a: 2.1
     joint_type: revolute
     control_mode: position
     operating_mode: 3

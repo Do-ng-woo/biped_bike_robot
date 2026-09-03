@@ -290,8 +290,8 @@
     <limit
       lower="-3.14159"
       upper="3.14159"
-      effort="1.5"
-      velocity="6.38" />
+      effort="3.0"
+      velocity="8.063" />
     <dynamics
       damping="0.1"
       friction="0.1" />
@@ -416,8 +416,8 @@
     <limit
       lower="-3.14159"
       upper="3.14159"
-      effort="1.5"
-      velocity="6.38" />
+      effort="3.0"
+      velocity="8.063" />
     <dynamics
       damping="0.1"
       friction="0.1" />
@@ -729,8 +729,8 @@
     <limit
       lower="-3.14159"
       upper="3.14159"
-      effort="1.5"
-      velocity="6.38" />
+      effort="3.0"
+      velocity="8.063" />
     <dynamics
       damping="0.1"
       friction="0.1" />
@@ -855,8 +855,8 @@
     <limit
       lower="-3.14159"
       upper="3.14159"
-      effort="1.5"
-      velocity="6.38" />
+      effort="3.0"
+      velocity="8.063" />
     <dynamics
       damping="0.1"
       friction="0.1" />

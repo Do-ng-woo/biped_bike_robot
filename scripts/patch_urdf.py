@@ -176,10 +176,11 @@ def patch_joint_axes(content):
 
 
 def patch_joint_limits_and_dynamics(content):
-    """[패치 6] Dynamixel XL430-W250-T 모터 속성 및 동역학 적용
+    """[패치 6] 관절별 Dynamixel 모터 속성 및 동역학 적용
     
     - effort: 1.5 (N.m), velocity: 6.38 (rad/s), 위치 범위: -pi ~ pi
-    - arm_shoulder_pitch_jnt만 별도 모터 기준 effort 4.1 적용
+    - knee-pitch/foot-roll은 XM430-W210-R 기준 effort 3.0, velocity 8.063 적용
+    - arm_shoulder_pitch_jnt는 XM430-W350 기준 effort 4.1 적용
     - 시뮬레이션 안정성을 위한 dynamics (damping=0.1, friction=0.1) 추가
     """
     # 1. 기존 Revolute 관절의 limit 속성을 치환하고 dynamics 태그 추가
@@ -219,6 +220,23 @@ def patch_joint_limits_and_dynamics(content):
         content,
         flags=re.DOTALL,
     )
+
+    for joint_name in (
+        "l_knee_pitch_jnt",
+        "r_knee_pitch_jnt",
+        "l_foot_roll_jnt",
+        "r_foot_roll_jnt",
+    ):
+        joint_pattern = (
+            rf'(<joint\s+name="{joint_name}".*?<limit\b[^>]*?effort=")'
+            rf'1\.5("[^>]*?velocity=")6\.38(")'
+        )
+        content = re.sub(
+            joint_pattern,
+            r'\g<1>3.0\g<2>8.063\g<3>',
+            content,
+            flags=re.DOTALL,
+        )
 
     # 2. Continuous 관절은 limit이 아예 없으므로 </joint> 앞에 삽입
     def replace_continuous(match):

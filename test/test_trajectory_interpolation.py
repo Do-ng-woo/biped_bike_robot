@@ -21,6 +21,7 @@ def load_script(name):
 bridge = load_script("dxl_joint_state_bridge.py")
 walker = load_script("ik_walker.py")
 sequence = load_script("bike_transform_sequence.py")
+web_control = load_script("web_control.py")
 
 
 def test_single_point_trajectory_is_monotonic_and_reaches_target():
@@ -53,10 +54,6 @@ def test_multi_point_trajectory_is_continuous_at_segment_boundary():
 
 def test_walker_cycle_has_no_large_command_discontinuity():
     param = walker.WalkingParam()
-    param.period_time = 2.0
-    param.support_hip_roll_lift = math.radians(20.0)
-    param.support_ankle_roll_lift = math.radians(10.0)
-    param.pelvis_pitch_forward_lift = math.radians(30.0)
     engine = walker.IKWalkerEngine(param)
     engine.start()
 
@@ -64,6 +61,119 @@ def test_walker_cycle_has_no_large_command_discontinuity():
         [engine.step(0.008) for _ in range(int(param.period_time / 0.008) + 2)]
     )
     assert np.max(np.abs(np.diff(samples, axis=0))) < 0.05
+
+
+def test_walker_uses_physical_leg_dimensions_and_base_stance():
+    param = walker.WalkingParam()
+
+    assert walker.THIGH_LENGTH == pytest.approx(0.059)
+    assert walker.CALF_LENGTH == pytest.approx(0.1125)
+    assert walker.LEG_LENGTH == pytest.approx(0.1715)
+    assert walker.HIP_SPACING == pytest.approx(0.125)
+    assert param.init_y_offset == pytest.approx(0.005)
+    assert walker.HIP_SPACING + param.init_y_offset == pytest.approx(0.130)
+
+
+def test_swing_lift_starts_and_lands_at_zero_with_zero_boundary_velocity():
+    engine = walker.IKWalkerEngine()
+    start = engine.l_ssp_start_time
+    end = engine.l_ssp_end_time
+    dt = 1e-5
+
+    assert engine._ssp_lift_profile(start, start, end) == 0.0
+    assert engine._ssp_lift_profile((start + end) / 2, start, end) == pytest.approx(1.0)
+    assert engine._ssp_lift_profile(end, start, end) == 0.0
+    assert engine._ssp_lift_profile(start + dt, start, end) < 1e-8
+    assert engine._ssp_lift_profile(end - dt, start, end) < 1e-8
+
+
+def test_left_swing_endpoint_lifts_once_and_returns_to_support_height():
+    engine = walker.IKWalkerEngine()
+    start = engine.l_ssp_start_time
+    middle = (engine.l_ssp_start_time + engine.l_ssp_end_time) / 2
+    end = engine.l_ssp_end_time
+
+    relative_heights = []
+    for time in (start, middle, end):
+        engine.time = time
+        engine._compute_leg_angles()
+        endpoints = engine.last_foot_endpoints
+        relative_heights.append(endpoints[8] - endpoints[2])
+
+    assert relative_heights == pytest.approx([0.0, engine.param.z_move_amplitude, 0.0])
+
+
+def test_roll_correction_does_not_change_base_ik_or_foot_targets():
+    base_param = walker.WalkingParam(
+        roll_correction=0.0,
+        hip_pitch_forward=0.0,
+    )
+    base_engine = walker.IKWalkerEngine(base_param)
+    corrected_engine = walker.IKWalkerEngine(
+        walker.WalkingParam(hip_pitch_forward=0.0)
+    )
+
+    for time in (0.0, base_engine.l_ssp_end_time, base_engine.r_ssp_end_time):
+        base_engine.time = time
+        corrected_engine.time = time
+        base_angles = base_engine._compute_leg_angles()
+        corrected_angles = corrected_engine._compute_leg_angles()
+
+        expected_delta = (
+            walker.LEG_ROLL_CORRECTION_SIGNS
+            * corrected_engine.param.roll_correction
+        )
+        assert corrected_angles - base_angles == pytest.approx(expected_delta)
+        assert corrected_engine.last_foot_endpoints == pytest.approx(
+            base_engine.last_foot_endpoints
+        )
+
+
+def test_forward_hip_pitch_is_an_independent_default_posture_offset():
+    base_engine = walker.IKWalkerEngine(
+        walker.WalkingParam(hip_pitch_forward=0.0)
+    )
+    forward_engine = walker.IKWalkerEngine()
+
+    base_angles = base_engine._compute_leg_angles()
+    forward_angles = forward_engine._compute_leg_angles()
+    expected_delta = (
+        walker.LEG_HIP_PITCH_FORWARD_SIGNS
+        * math.radians(10.0)
+    )
+
+    assert forward_angles - base_angles == pytest.approx(expected_delta)
+    assert forward_engine.last_foot_endpoints == pytest.approx(
+        base_engine.last_foot_endpoints
+    )
+
+
+def test_walker_end_transition_removes_only_roll_correction():
+    base_command = np.linspace(-0.8, 0.8, 17)
+    correction = math.radians(3.0)
+    corrected_command = base_command.copy()
+    corrected_command[list(walker.ROLL_JOINT_INDICES)] += (
+        walker.PUBLISHED_ROLL_CORRECTION_SIGNS * correction
+    )
+
+    normalized = walker.without_roll_correction(corrected_command, correction)
+
+    assert normalized == pytest.approx(base_command)
+    assert corrected_command != pytest.approx(base_command)
+
+
+def test_web_walking_command_uses_ik_walker_defaults():
+    command = web_control.walk_command(2)
+
+    assert command == [
+        "ros2",
+        "run",
+        "biped_bike_robot",
+        "ik_walker.py",
+        "--ros-args",
+        "-p",
+        "num_cycles:=2",
+    ]
 
 
 def test_physical_knee_directions_remain_mirrored():
@@ -129,7 +239,7 @@ def test_revert_restores_shoulder_before_arm_yaw_returns():
     yaw_return_end = sequence.REVERT_SEQUENCE[7]
     ready = sequence.REVERT_SEQUENCE[-1]
 
-    assert len(sequence.REVERT_SEQUENCE) == 10
+    assert len(sequence.REVERT_SEQUENCE) == 11
     assert sequence.REVERT_SEQUENCE[-1] == sequence.HARDWARE_READY
     assert sequence.HARDWARE_READY == sequence.READY
     assert wrist_return_start[yaw_index] == pytest.approx(math.pi, abs=1e-5)
@@ -149,10 +259,10 @@ def test_revert_restores_shoulder_before_arm_yaw_returns():
         sequence.SHOULDER_READY_RAD
     )
     assert yaw_return_end[left_hip_pitch_index] == pytest.approx(
-        -sequence.DEEP_SQUAT_HIP_PITCH_RAD + sequence.REVERT_HIP_BACK_OFFSET_RAD
+        -sequence.DEEP_SQUAT_HIP_PITCH_RAD
     )
     assert yaw_return_end[right_hip_pitch_index] == pytest.approx(
-        sequence.DEEP_SQUAT_HIP_PITCH_RAD - sequence.REVERT_HIP_BACK_OFFSET_RAD
+        sequence.DEEP_SQUAT_HIP_PITCH_RAD
     )
     assert ready[shoulder_index] == pytest.approx(sequence.SHOULDER_READY_RAD)
     assert ready[left_hip_pitch_index] == pytest.approx(
@@ -180,6 +290,23 @@ def test_revert_restores_shoulder_before_arm_yaw_returns():
     assert sequence.READY_HIP_FORWARD_OFFSET_RAD == pytest.approx(
         0.0
     )
+    hip_return_delay = sequence.REVERT_SEQUENCE[8]
+    assert hip_return_delay[left_hip_pitch_index] == pytest.approx(
+        yaw_return_end[left_hip_pitch_index]
+    )
+    assert hip_return_delay[right_hip_pitch_index] == pytest.approx(
+        yaw_return_end[right_hip_pitch_index]
+    )
+    assert hip_return_delay[left_knee_pitch_index] == pytest.approx(
+        yaw_return_end[left_knee_pitch_index]
+        + 0.30 * (ready[left_knee_pitch_index] - yaw_return_end[left_knee_pitch_index])
+    )
+    assert hip_return_delay[right_knee_pitch_index] == pytest.approx(
+        yaw_return_end[right_knee_pitch_index]
+        + 0.30 * (ready[right_knee_pitch_index] - yaw_return_end[right_knee_pitch_index])
+    )
+    assert len(sequence.REVERT_POINT_TIME_FACTORS) == len(sequence.REVERT_SEQUENCE)
+    assert sequence.REVERT_POINT_TIME_FACTORS[7:10] == (8.0, 8.3, 9.0)
     assert all(
         len(point) == len(sequence.JOINT_NAMES)
         for point in sequence.REVERT_SEQUENCE + sequence.TRANSFORM_SEQUENCE

@@ -58,18 +58,6 @@ def walk_command(num_cycles: int) -> list[str]:
         "--ros-args",
         "-p",
         f"num_cycles:={num_cycles}",
-        "-p",
-        "support_hip_roll_lift_deg:=20.0",
-        "-p",
-        "support_ankle_roll_lift_deg:=10.0",
-        "-p",
-        "support_ankle_roll_lift_sign:=1.0",
-        "-p",
-        "pelvis_pitch_forward_lift_deg:=30.0",
-        "-p",
-        "pelvis_pitch_forward_lift_sign:=1.0",
-        "-p",
-        "trajectory_time_scale:=4.0",
     ]
 
 
