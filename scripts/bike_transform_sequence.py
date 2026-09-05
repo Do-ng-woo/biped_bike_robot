@@ -32,6 +32,8 @@ WRIST_ROLL_YAWED_RAD = math.pi
 # Leg constants
 # ============================================================
 
+BIKE_HIP_YAW_INWARD_RAD = math.radians(5.0)
+
 HIP_PITCH_FOLD_LIMIT_RAD = 1.74533
 
 DEEP_SQUAT_HIP_PITCH_RAD = 0.7764
@@ -505,8 +507,8 @@ REVERT_RISE_LATE = (
 # ============================================================
 
 BIKE_FINAL = (
-    0.0, 0.0, 0.0, 0.0, -1.57, 0.0,
-    0.0, 0.0, 0.0, 0.0, -1.57, 0.0,
+    BIKE_HIP_YAW_INWARD_RAD, 0.0, 0.0, 0.0, -1.57, 0.0,
+    -BIKE_HIP_YAW_INWARD_RAD, 0.0, 0.0, 0.0, -1.57, 0.0,
     3.14159, SHOULDER_READY_RAD, ELBOW_LIFT_RAD, 0.0, WRIST_ROLL_YAWED_RAD,
 )
 

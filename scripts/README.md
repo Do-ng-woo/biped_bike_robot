@@ -139,6 +139,9 @@ Gazebo URDF에서 모두 차단됩니다.
 변신 중 팔꿈치 pitch가 열려 있는 지지/완성 자세는 기존 `10도` 대신
 `20도`를 사용하고, 완전한 바이크 자세의 어깨 pitch는 뒤쪽 `-70도` 자세를
 유지합니다.
+완전한 바이크 자세에서는 hip yaw도 안쪽으로 모아 왼쪽 `+5도`, 오른쪽
+`-5도`를 적용합니다. 리버트는 이 자세에서 시작한 뒤 다음 지지 waypoint로
+넘어가며 hip yaw가 다시 0도로 풀립니다.
 
 ```bash
 ros2 run biped_bike_robot transform_bike.py

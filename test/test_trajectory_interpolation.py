@@ -225,9 +225,11 @@ def test_physical_wheel_velocity_conversion_preserves_signed_commands():
 
 def test_revert_restores_shoulder_before_arm_yaw_returns():
     yaw_index = sequence.JOINT_NAMES.index("arm_base_yaw_jnt")
+    left_hip_yaw_index = sequence.JOINT_NAMES.index("l_hip_yaw_jnt")
     left_hip_pitch_index = sequence.JOINT_NAMES.index("l_hip_pitch_jnt")
     left_knee_pitch_index = sequence.JOINT_NAMES.index("l_knee_pitch_jnt")
     left_ankle_pitch_index = sequence.JOINT_NAMES.index("l_ankle_pitch_jnt")
+    right_hip_yaw_index = sequence.JOINT_NAMES.index("r_hip_yaw_jnt")
     right_hip_pitch_index = sequence.JOINT_NAMES.index("r_hip_pitch_jnt")
     right_knee_pitch_index = sequence.JOINT_NAMES.index("r_knee_pitch_jnt")
     right_ankle_pitch_index = sequence.JOINT_NAMES.index("r_ankle_pitch_jnt")
@@ -247,6 +249,12 @@ def test_revert_restores_shoulder_before_arm_yaw_returns():
     assert len(sequence.REVERT_SEQUENCE) == 13
     assert sequence.REVERT_SEQUENCE[-1] == sequence.HARDWARE_READY
     assert sequence.HARDWARE_READY == sequence.READY
+    assert sequence.REVERT_SEQUENCE[0][left_hip_yaw_index] == pytest.approx(
+        sequence.BIKE_HIP_YAW_INWARD_RAD
+    )
+    assert sequence.REVERT_SEQUENCE[0][right_hip_yaw_index] == pytest.approx(
+        -sequence.BIKE_HIP_YAW_INWARD_RAD
+    )
     assert wrist_return_start[yaw_index] == pytest.approx(math.pi, abs=1e-5)
     assert wrist_return_start[shoulder_index] == pytest.approx(
         sequence.SHOULDER_YAWED_SUPPORT_RAD
@@ -357,6 +365,8 @@ def test_revert_restores_shoulder_before_arm_yaw_returns():
 
 def test_transform_yaws_wrist_before_pitching_claw_down():
     elbow_index = sequence.JOINT_NAMES.index("arm_elbow_pitch_jnt")
+    left_hip_yaw_index = sequence.JOINT_NAMES.index("l_hip_yaw_jnt")
+    right_hip_yaw_index = sequence.JOINT_NAMES.index("r_hip_yaw_jnt")
     wrist_pitch_index = sequence.JOINT_NAMES.index("arm_wrist_pitch_jnt")
     wrist_roll_index = sequence.JOINT_NAMES.index("arm_wrist_roll_jnt")
 
@@ -390,6 +400,12 @@ def test_transform_yaws_wrist_before_pitching_claw_down():
     assert bike_final[elbow_index] == pytest.approx(
         math.radians(20.0),
         abs=1e-6,
+    )
+    assert bike_final[left_hip_yaw_index] == pytest.approx(
+        sequence.BIKE_HIP_YAW_INWARD_RAD
+    )
+    assert bike_final[right_hip_yaw_index] == pytest.approx(
+        -sequence.BIKE_HIP_YAW_INWARD_RAD
     )
 
 
