@@ -134,7 +134,11 @@ ros2 run biped_bike_robot ready_posture.py --ros-args \
 접고 펴는 동안 어깨 관절을 기구 한계인 `-25도`(`-0.436332 rad`)로
 유지해 전방 낙하를 막습니다. 이 값보다 뒤로 가는 명령은 실물 브릿지와
 Gazebo URDF에서 모두 차단됩니다.
-마지막 단계에서만 기존 바이크 최종 어깨 자세 `0.26 rad`로 전환합니다.
+손목은 pitch를 아래로 접기 전에 `arm_wrist_roll_jnt`를 먼저 `180도` 돌린
+뒤, 그 상태를 유지한 채 claw pitch를 접습니다.
+변신 중 팔꿈치 pitch가 열려 있는 지지/완성 자세는 기존 `10도` 대신
+`20도`를 사용하고, 완전한 바이크 자세의 어깨 pitch는 뒤쪽 `-70도` 자세를
+유지합니다.
 
 ```bash
 ros2 run biped_bike_robot transform_bike.py
@@ -153,10 +157,16 @@ ros2 run biped_bike_robot transform_bike.py --ros-args \
 변신 코드와 공용 자세 정의를 사용하며, 리버트에는 기립 안정화를 위한 중간
 waypoint가 포함됩니다. 반복되는 어깨 값은 별도 제약이 아니라 지지 자세를 계속
 유지하는 위치 명령입니다.
+리버트 초반에는 접힌 claw 상태에서 `arm_wrist_roll_jnt`의 `180도` 자세를
+유지한 채 wrist pitch를 먼저 펴고, 이후 arm yaw 복귀 단계에서 wrist roll도
+원위치로 돌아옵니다.
 
-무릎이 펴지는 8→9단계에서는 힙을 6~7단계와 같은 왼쪽 `-44.48도`,
-오른쪽 `+44.48도`로 시작합니다. 전환 시간의 처음 30% 동안 힙은 고정되고
-무릎과 발목만 먼저 움직이며, 나머지 70%에서 힙이 준비 자세로 복귀합니다.
+기립 구간은 8.0 이후에 별도 waypoint로 나뉩니다. 8.0에서는 arm yaw만
+복귀하고 deep squat 자세를 유지합니다. 8.5에서는 무릎/발목은 그대로 둔 채
+hip pitch만 READY 방향으로 약 `10도` 먼저 복귀해 뒤쪽 체중을 만듭니다.
+이후 9.0, 9.6, 10.2에서 무릎/발목은 각각 `30%`, `65%`, `85%` 펴지고,
+hip pitch는 deep squat 기준 누적 `25도`, `38도`, `43도` 복귀합니다.
+마지막 10.7에서 `HARDWARE_READY` 자세로 정착합니다.
 
 ```bash
 ros2 run biped_bike_robot revert_bike.py

@@ -20,11 +20,12 @@ JOINT_NAMES = (
 
 SHOULDER_READY_RAD = -1.22173
 SHOULDER_YAWED_SUPPORT_RAD = -1.91986
-ELBOW_LIFT_RAD = 0.174533
+ELBOW_LIFT_RAD = math.radians(20.0)
 
 SHOULDER_UP_RAD = SHOULDER_READY_RAD
 
 WRIST_PITCH_DOWN_RAD = -1.5708
+WRIST_ROLL_YAWED_RAD = math.pi
 
 
 # ============================================================
@@ -59,6 +60,9 @@ READY_ANKLE_PITCH_RAD = (
 
 WRIST_PITCH_INDEX = JOINT_NAMES.index(
     'arm_wrist_pitch_jnt'
+)
+WRIST_ROLL_INDEX = JOINT_NAMES.index(
+    'arm_wrist_roll_jnt'
 )
 
 L_HIP_PITCH_INDEX = JOINT_NAMES.index('l_hip_pitch_jnt')
@@ -107,6 +111,20 @@ def with_wrist_pitch_down(positions):
     updated = list(positions)
     updated[WRIST_PITCH_INDEX] = WRIST_PITCH_DOWN_RAD
     return tuple(updated)
+
+
+def with_wrist_roll_yawed(positions):
+    """Return a copy of a posture with wrist roll/yaw rotated 180 deg."""
+    updated = list(positions)
+    updated[WRIST_ROLL_INDEX] = WRIST_ROLL_YAWED_RAD
+    return tuple(updated)
+
+
+def with_wrist_pitch_down_and_roll_yawed(positions):
+    """Return a copy with wrist roll/yaw at 180 deg before pitch folds."""
+    return with_wrist_pitch_down(
+        with_wrist_roll_yawed(positions)
+    )
 
 
 def hip_pose_from_return(base_positions, hip_return_rad):
@@ -171,7 +189,7 @@ def interpolate_with_hip_return(
     return tuple(updated)
 
 
-def yawed_revert_arm_clearance(shoulder, wrist):
+def yawed_revert_arm_clearance(shoulder, wrist_pitch, wrist_roll=0.0):
     return (
         0.0,
         0.0,
@@ -190,8 +208,8 @@ def yawed_revert_arm_clearance(shoulder, wrist):
         3.14159,
         shoulder,
         ELBOW_LIFT_RAD,
-        wrist,
-        0.0,
+        wrist_pitch,
+        wrist_roll,
     )
 
 
@@ -303,6 +321,11 @@ BACK_SHIFT_SUPPORTED = (
 )
 
 
+DEEP_SQUAT_WRIST_ROLL_YAWED = with_wrist_roll_yawed(
+    DEEP_SQUAT_SUPPORTED
+)
+
+
 DEEP_SQUAT_CLAW_PITCH_DOWN = (
     0.0,
     0.0,
@@ -322,7 +345,7 @@ DEEP_SQUAT_CLAW_PITCH_DOWN = (
     SHOULDER_YAWED_SUPPORT_RAD,
     ELBOW_LIFT_RAD,
     WRIST_PITCH_DOWN_RAD,
-    0.0,
+    WRIST_ROLL_YAWED_RAD,
 )
 
 
@@ -334,6 +357,7 @@ REVERT_YAWED_SHOULDER_READY = (
     yawed_revert_arm_clearance(
         SHOULDER_READY_RAD,
         0.0,
+        WRIST_ROLL_YAWED_RAD,
     )
 )
 
@@ -483,7 +507,7 @@ REVERT_RISE_LATE = (
 BIKE_FINAL = (
     0.0, 0.0, 0.0, 0.0, -1.57, 0.0,
     0.0, 0.0, 0.0, 0.0, -1.57, 0.0,
-    3.14159, SHOULDER_READY_RAD, ELBOW_LIFT_RAD, 0.0, 0.0,
+    3.14159, SHOULDER_READY_RAD, ELBOW_LIFT_RAD, 0.0, WRIST_ROLL_YAWED_RAD,
 )
 
 
@@ -505,11 +529,11 @@ BIKE_FINAL = (
 # ============================================================
 
 REVERT_SEQUENCE = (
-    with_wrist_pitch_down(BIKE_FINAL),
-    with_wrist_pitch_down(BIKE_SUPPORTED),
-    with_wrist_pitch_down(LEGS_STRAIGHT_SUPPORTED),
-    with_wrist_pitch_down(HIP_RETURN_SUPPORTED),
-    with_wrist_pitch_down(FOLDED_SUPPORTED),
+    with_wrist_pitch_down_and_roll_yawed(BIKE_FINAL),
+    with_wrist_pitch_down_and_roll_yawed(BIKE_SUPPORTED),
+    with_wrist_pitch_down_and_roll_yawed(LEGS_STRAIGHT_SUPPORTED),
+    with_wrist_pitch_down_and_roll_yawed(HIP_RETURN_SUPPORTED),
+    with_wrist_pitch_down_and_roll_yawed(FOLDED_SUPPORTED),
     DEEP_SQUAT_CLAW_PITCH_DOWN,
     REVERT_YAWED_SHOULDER_READY,
     REVERT_AFTER_YAW_SHOULDER_READY,
@@ -548,10 +572,12 @@ assert len(REVERT_SEQUENCE) == len(REVERT_POINT_TIME_FACTORS)
 TRANSFORM_SEQUENCE = (
     DEEP_SQUAT_ARMS_UP,
     DEEP_SQUAT_SUPPORTED,
+    # Rotate the wrist roll/yaw first, then fold wrist pitch down.
+    DEEP_SQUAT_WRIST_ROLL_YAWED,
     DEEP_SQUAT_CLAW_PITCH_DOWN,
-    with_wrist_pitch_down(FOLDED_SUPPORTED),
-    with_wrist_pitch_down(HIP_RETURN_SUPPORTED),
-    with_wrist_pitch_down(LEGS_STRAIGHT_SUPPORTED),
-    with_wrist_pitch_down(BIKE_SUPPORTED),
-    with_wrist_pitch_down(BIKE_FINAL),
+    with_wrist_pitch_down_and_roll_yawed(FOLDED_SUPPORTED),
+    with_wrist_pitch_down_and_roll_yawed(HIP_RETURN_SUPPORTED),
+    with_wrist_pitch_down_and_roll_yawed(LEGS_STRAIGHT_SUPPORTED),
+    with_wrist_pitch_down_and_roll_yawed(BIKE_SUPPORTED),
+    with_wrist_pitch_down_and_roll_yawed(BIKE_FINAL),
 )

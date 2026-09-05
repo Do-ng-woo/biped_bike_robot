@@ -232,32 +232,45 @@ def test_revert_restores_shoulder_before_arm_yaw_returns():
     right_knee_pitch_index = sequence.JOINT_NAMES.index("r_knee_pitch_jnt")
     right_ankle_pitch_index = sequence.JOINT_NAMES.index("r_ankle_pitch_jnt")
     shoulder_index = sequence.JOINT_NAMES.index("arm_shoulder_pitch_jnt")
-    wrist_index = sequence.JOINT_NAMES.index("arm_wrist_pitch_jnt")
+    wrist_pitch_index = sequence.JOINT_NAMES.index("arm_wrist_pitch_jnt")
+    wrist_roll_index = sequence.JOINT_NAMES.index("arm_wrist_roll_jnt")
 
     wrist_return_start = sequence.REVERT_SEQUENCE[5]
     wrist_return_end = sequence.REVERT_SEQUENCE[6]
     yaw_return_end = sequence.REVERT_SEQUENCE[7]
+    pre_rise = sequence.REVERT_SEQUENCE[8]
+    rise_early = sequence.REVERT_SEQUENCE[9]
+    rise_mid = sequence.REVERT_SEQUENCE[10]
+    rise_late = sequence.REVERT_SEQUENCE[11]
     ready = sequence.REVERT_SEQUENCE[-1]
 
-    assert len(sequence.REVERT_SEQUENCE) == 11
+    assert len(sequence.REVERT_SEQUENCE) == 13
     assert sequence.REVERT_SEQUENCE[-1] == sequence.HARDWARE_READY
     assert sequence.HARDWARE_READY == sequence.READY
     assert wrist_return_start[yaw_index] == pytest.approx(math.pi, abs=1e-5)
     assert wrist_return_start[shoulder_index] == pytest.approx(
         sequence.SHOULDER_YAWED_SUPPORT_RAD
     )
-    assert wrist_return_start[wrist_index] == pytest.approx(
+    assert wrist_return_start[wrist_pitch_index] == pytest.approx(
         sequence.WRIST_PITCH_DOWN_RAD
+    )
+    assert wrist_return_start[wrist_roll_index] == pytest.approx(
+        sequence.WRIST_ROLL_YAWED_RAD
     )
     assert wrist_return_end[yaw_index] == pytest.approx(math.pi, abs=1e-5)
     assert wrist_return_end[shoulder_index] == pytest.approx(
         sequence.SHOULDER_READY_RAD
     )
-    assert wrist_return_end[wrist_index] == pytest.approx(0.0)
+    assert wrist_return_end[wrist_pitch_index] == pytest.approx(0.0)
+    assert wrist_return_end[wrist_roll_index] == pytest.approx(
+        sequence.WRIST_ROLL_YAWED_RAD
+    )
     assert yaw_return_end[yaw_index] == pytest.approx(0.0)
     assert yaw_return_end[shoulder_index] == pytest.approx(
         sequence.SHOULDER_READY_RAD
     )
+    assert yaw_return_end[wrist_pitch_index] == pytest.approx(0.0)
+    assert yaw_return_end[wrist_roll_index] == pytest.approx(0.0)
     assert yaw_return_end[left_hip_pitch_index] == pytest.approx(
         -sequence.DEEP_SQUAT_HIP_PITCH_RAD
     )
@@ -290,26 +303,93 @@ def test_revert_restores_shoulder_before_arm_yaw_returns():
     assert sequence.READY_HIP_FORWARD_OFFSET_RAD == pytest.approx(
         0.0
     )
-    hip_return_delay = sequence.REVERT_SEQUENCE[8]
-    assert hip_return_delay[left_hip_pitch_index] == pytest.approx(
-        yaw_return_end[left_hip_pitch_index]
+    assert pre_rise[left_hip_pitch_index] == pytest.approx(
+        -sequence.DEEP_SQUAT_HIP_PITCH_RAD + sequence.REVERT_PRE_RISE_HIP_RETURN_RAD
     )
-    assert hip_return_delay[right_hip_pitch_index] == pytest.approx(
-        yaw_return_end[right_hip_pitch_index]
+    assert pre_rise[right_hip_pitch_index] == pytest.approx(
+        sequence.DEEP_SQUAT_HIP_PITCH_RAD - sequence.REVERT_PRE_RISE_HIP_RETURN_RAD
     )
-    assert hip_return_delay[left_knee_pitch_index] == pytest.approx(
+    assert pre_rise[left_knee_pitch_index] == pytest.approx(
         yaw_return_end[left_knee_pitch_index]
-        + 0.30 * (ready[left_knee_pitch_index] - yaw_return_end[left_knee_pitch_index])
     )
-    assert hip_return_delay[right_knee_pitch_index] == pytest.approx(
+    assert pre_rise[right_knee_pitch_index] == pytest.approx(
         yaw_return_end[right_knee_pitch_index]
-        + 0.30 * (ready[right_knee_pitch_index] - yaw_return_end[right_knee_pitch_index])
+    )
+    assert rise_early[left_hip_pitch_index] == pytest.approx(
+        -sequence.DEEP_SQUAT_HIP_PITCH_RAD + sequence.REVERT_RISE_EARLY_HIP_RETURN_RAD
+    )
+    assert rise_early[right_hip_pitch_index] == pytest.approx(
+        sequence.DEEP_SQUAT_HIP_PITCH_RAD - sequence.REVERT_RISE_EARLY_HIP_RETURN_RAD
+    )
+    assert rise_early[left_knee_pitch_index] == pytest.approx(
+        yaw_return_end[left_knee_pitch_index]
+        + sequence.REVERT_RISE_EARLY_RATIO
+        * (ready[left_knee_pitch_index] - yaw_return_end[left_knee_pitch_index])
+    )
+    assert rise_early[right_knee_pitch_index] == pytest.approx(
+        yaw_return_end[right_knee_pitch_index]
+        + sequence.REVERT_RISE_EARLY_RATIO
+        * (ready[right_knee_pitch_index] - yaw_return_end[right_knee_pitch_index])
+    )
+    assert rise_mid[left_hip_pitch_index] == pytest.approx(
+        -sequence.DEEP_SQUAT_HIP_PITCH_RAD + sequence.REVERT_RISE_MID_HIP_RETURN_RAD
+    )
+    assert rise_mid[left_knee_pitch_index] == pytest.approx(
+        yaw_return_end[left_knee_pitch_index]
+        + sequence.REVERT_RISE_MID_RATIO
+        * (ready[left_knee_pitch_index] - yaw_return_end[left_knee_pitch_index])
+    )
+    assert rise_late[left_hip_pitch_index] == pytest.approx(
+        -sequence.DEEP_SQUAT_HIP_PITCH_RAD + sequence.REVERT_RISE_LATE_HIP_RETURN_RAD
+    )
+    assert rise_late[left_knee_pitch_index] == pytest.approx(
+        yaw_return_end[left_knee_pitch_index]
+        + sequence.REVERT_RISE_LATE_RATIO
+        * (ready[left_knee_pitch_index] - yaw_return_end[left_knee_pitch_index])
     )
     assert len(sequence.REVERT_POINT_TIME_FACTORS) == len(sequence.REVERT_SEQUENCE)
-    assert sequence.REVERT_POINT_TIME_FACTORS[7:10] == (8.0, 8.3, 9.0)
+    assert sequence.REVERT_POINT_TIME_FACTORS[7:12] == (8.0, 8.5, 9.0, 9.6, 10.2)
     assert all(
         len(point) == len(sequence.JOINT_NAMES)
         for point in sequence.REVERT_SEQUENCE + sequence.TRANSFORM_SEQUENCE
+    )
+
+
+def test_transform_yaws_wrist_before_pitching_claw_down():
+    elbow_index = sequence.JOINT_NAMES.index("arm_elbow_pitch_jnt")
+    wrist_pitch_index = sequence.JOINT_NAMES.index("arm_wrist_pitch_jnt")
+    wrist_roll_index = sequence.JOINT_NAMES.index("arm_wrist_roll_jnt")
+
+    before_yaw = sequence.TRANSFORM_SEQUENCE[1]
+    after_yaw = sequence.TRANSFORM_SEQUENCE[2]
+    after_pitch_down = sequence.TRANSFORM_SEQUENCE[3]
+    bike_final = sequence.TRANSFORM_SEQUENCE[-1]
+
+    assert len(sequence.TRANSFORM_SEQUENCE) == 9
+    assert before_yaw[wrist_pitch_index] == pytest.approx(0.0)
+    assert before_yaw[wrist_roll_index] == pytest.approx(0.0)
+    assert after_yaw[wrist_pitch_index] == pytest.approx(0.0)
+    assert after_yaw[wrist_roll_index] == pytest.approx(
+        sequence.WRIST_ROLL_YAWED_RAD
+    )
+    assert after_pitch_down[wrist_pitch_index] == pytest.approx(
+        sequence.WRIST_PITCH_DOWN_RAD
+    )
+    assert after_pitch_down[wrist_roll_index] == pytest.approx(
+        sequence.WRIST_ROLL_YAWED_RAD
+    )
+    assert bike_final[wrist_pitch_index] == pytest.approx(
+        sequence.WRIST_PITCH_DOWN_RAD
+    )
+    assert bike_final[wrist_roll_index] == pytest.approx(
+        sequence.WRIST_ROLL_YAWED_RAD
+    )
+    assert bike_final[elbow_index] == pytest.approx(
+        sequence.ELBOW_LIFT_RAD
+    )
+    assert bike_final[elbow_index] == pytest.approx(
+        math.radians(20.0),
+        abs=1e-6,
     )
 
 
