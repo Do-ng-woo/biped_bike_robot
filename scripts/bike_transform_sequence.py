@@ -88,20 +88,24 @@ R_HIP_PITCH_INDEX = JOINT_NAMES.index('r_hip_pitch_jnt')
 # ============================================================
 
 # Publisher에서 이 factor 이후의 구간만 별도로 느리게 재생할 수 있다.
-REVERT_RISE_START_FACTOR = 8.0
+# REVERT_YAWED_SHOULDER_READY 이후부터 hip-back / rise 구간으로 본다.
+REVERT_RISE_START_FACTOR = 7.0
 
-# 무릎을 펴기 전에 hip만 먼저 약 10 deg 펴서 뒤쪽으로 체중을 만든다.
-REVERT_PRE_RISE_HIP_RETURN_RAD = math.radians(10.0)
+# 무릎을 펴기 전에 hip만 먼저 더 크게 열어 뒤쪽으로 체중을 만든다.
+# ELBOW_LIFT_RAD=20 deg와 매니퓰레이터 질량을 유지한 상태에서
+# 전방 쏠림을 줄이기 위해 기존 10 deg -> 15 deg로 강화한다.
+REVERT_PRE_RISE_HIP_RETURN_RAD = math.radians(15.0)
 
 # knee / ankle 진행률과, 같은 시점의 hip 누적 복귀량.
+# rise 초반에는 hip을 knee/ankle보다 빠르게 열어 backward bias를 유지한다.
 REVERT_RISE_EARLY_RATIO = 0.30
-REVERT_RISE_EARLY_HIP_RETURN_RAD = math.radians(25.0)
+REVERT_RISE_EARLY_HIP_RETURN_RAD = math.radians(28.0)
 
 REVERT_RISE_MID_RATIO = 0.65
-REVERT_RISE_MID_HIP_RETURN_RAD = math.radians(38.0)
+REVERT_RISE_MID_HIP_RETURN_RAD = math.radians(40.0)
 
 REVERT_RISE_LATE_RATIO = 0.85
-REVERT_RISE_LATE_HIP_RETURN_RAD = math.radians(43.0)
+REVERT_RISE_LATE_HIP_RETURN_RAD = math.radians(43.5)
 
 
 # ============================================================
@@ -387,13 +391,21 @@ REVERT_AFTER_YAW_SHOULDER_READY = (
 )
 
 
-# Arm yaw를 원위치로 돌린 뒤, 무릎/발목은 그대로 둔 상태에서
-# hip만 먼저 약 10 deg ready 방향으로 복귀시킨 자세.
-# 이 단계가 실제 "뒤로 기대기"를 먼저 만드는 pre-rise 단계다.
-REVERT_AFTER_YAW_HIP_BACK = hip_pose_from_return(
-    REVERT_AFTER_YAW_SHOULDER_READY,
+# 무릎/발목과 매니퓰레이터는 그대로 둔 상태에서
+# hip만 먼저 ready 방향으로 15 deg 복귀시킨 자세.
+# 중요한 점: arm base yaw / wrist roll을 아직 되돌리지 않는다.
+# 즉 안정된 yawed arm configuration을 유지한 채 먼저 뒤쪽 bias를 만든다.
+REVERT_YAWED_HIP_BACK = hip_pose_from_return(
+    REVERT_YAWED_SHOULDER_READY,
     REVERT_PRE_RISE_HIP_RETURN_RAD,
 )
+
+# 동일 자세를 한 waypoint 더 유지하여 hip 이동 후 남은 운동량이
+# knee extension과 바로 겹치지 않도록 한다.
+REVERT_HIP_BACK_HOLD = REVERT_YAWED_HIP_BACK
+
+# 이전 이름을 외부 코드가 참조하고 있을 수 있으므로 호환용 alias는 유지한다.
+REVERT_AFTER_YAW_HIP_BACK = REVERT_YAWED_HIP_BACK
 
 
 DEEP_SQUAT_ARMS_NORMAL = (
@@ -455,47 +467,106 @@ HARDWARE_READY = READY
 
 
 # ============================================================
+# Standing target while the manipulator is held fixed
+# ============================================================
+
+# 다리는 READY까지 펴지만, 일어서는 동안 매니퓰레이터 configuration은
+# REVERT_YAWED_SHOULDER_READY와 동일하게 유지한다.
+# 이렇게 하면 rise 보간 중에 arm base yaw / elbow / wrist가 동시에 움직여
+# 상체 CoM을 다시 흔드는 것을 막을 수 있다.
+STANDING_ARM_HELD = (
+    0.0,
+    0.0,
+    -READY_HIP_PITCH_RAD - READY_HIP_FORWARD_OFFSET_RAD,
+    READY_KNEE_PITCH_RAD,
+    READY_ANKLE_PITCH_RAD,
+    0.0,
+
+    0.0,
+    0.0,
+    READY_HIP_PITCH_RAD + READY_HIP_FORWARD_OFFSET_RAD,
+    READY_KNEE_PITCH_RAD,
+    READY_ANKLE_PITCH_RAD,
+    0.0,
+
+    3.14159,
+    SHOULDER_READY_RAD,
+    ELBOW_LIFT_RAD,
+    0.0,
+    WRIST_ROLL_YAWED_RAD,
+)
+
+
+# 완전히 선 뒤 arm base yaw / wrist roll만 먼저 READY 방향으로 복귀한다.
+# ELBOW_LIFT_RAD=20 deg는 링크 간섭 방지를 위해 이 단계까지 유지한다.
+STANDING_ARM_BASE_RETURNED = (
+    0.0,
+    0.0,
+    -READY_HIP_PITCH_RAD - READY_HIP_FORWARD_OFFSET_RAD,
+    READY_KNEE_PITCH_RAD,
+    READY_ANKLE_PITCH_RAD,
+    0.0,
+
+    0.0,
+    0.0,
+    READY_HIP_PITCH_RAD + READY_HIP_FORWARD_OFFSET_RAD,
+    READY_KNEE_PITCH_RAD,
+    READY_ANKLE_PITCH_RAD,
+    0.0,
+
+    0.0,
+    SHOULDER_READY_RAD,
+    ELBOW_LIFT_RAD,
+    0.0,
+    0.0,
+)
+
+
+# ============================================================
 # Squat -> ready rise waypoints
 # ============================================================
 
 # 1) PRE-RISE
-# REVERT_AFTER_YAW_HIP_BACK에서 knee/ankle은 deep squat 그대로이고
-# hip만 10 deg 먼저 복귀한다.
-
-# 2) EARLY
+# REVERT_YAWED_HIP_BACK에서 knee/ankle과 arm은 그대로 유지하고
+# hip만 15 deg 먼저 복귀한다.
+#
+# 2) HOLD
+# REVERT_HIP_BACK_HOLD에서 같은 자세를 잠시 유지한다.
+#
+# 3) EARLY
 # knee / ankle = 전체 복귀의 30%
-# hip          = deep squat 기준 25 deg 복귀
+# hip          = deep squat 기준 28 deg 복귀
 REVERT_RISE_EARLY = (
     interpolate_with_hip_return(
-        REVERT_AFTER_YAW_HIP_BACK,
-        READY,
+        REVERT_YAWED_HIP_BACK,
+        STANDING_ARM_HELD,
         REVERT_RISE_EARLY_RATIO,
         REVERT_RISE_EARLY_HIP_RETURN_RAD,
     )
 )
 
 
-# 3) MID
+# 4) MID
 # knee / ankle = 전체 복귀의 65%
-# hip          = deep squat 기준 38 deg 복귀
+# hip          = deep squat 기준 40 deg 복귀
 REVERT_RISE_MID = (
     interpolate_with_hip_return(
-        REVERT_AFTER_YAW_HIP_BACK,
-        READY,
+        REVERT_YAWED_HIP_BACK,
+        STANDING_ARM_HELD,
         REVERT_RISE_MID_RATIO,
         REVERT_RISE_MID_HIP_RETURN_RAD,
     )
 )
 
 
-# 4) LATE
+# 5) LATE
 # knee / ankle = 전체 복귀의 85%
-# hip          = deep squat 기준 43 deg 복귀
-# READY 직전까지 약간 뒤쪽 bias를 남겨 마지막 순간의 전방 쏠림을 줄인다.
+# hip          = deep squat 기준 43.5 deg 복귀
+# READY 직전까지 작은 backward bias를 남겨 마지막 전방 쏠림을 줄인다.
 REVERT_RISE_LATE = (
     interpolate_with_hip_return(
-        REVERT_AFTER_YAW_HIP_BACK,
-        READY,
+        REVERT_YAWED_HIP_BACK,
+        STANDING_ARM_HELD,
         REVERT_RISE_LATE_RATIO,
         REVERT_RISE_LATE_HIP_RETURN_RAD,
     )
@@ -519,15 +590,18 @@ BIKE_FINAL = (
 #
 # standing 구간만 보면:
 #
-# 8.0  : arm yaw 복귀 완료, deep squat 유지
-# 8.5  : hip만 10 deg 먼저 복귀 (pre-rise)
-# 9.0  : knee/ankle 30%, hip 25 deg 누적 복귀
-# 9.6  : knee/ankle 65%, hip 38 deg 누적 복귀
-# 10.2 : knee/ankle 85%, hip 43 deg 누적 복귀
-# 10.7 : hardware ready
+# 7.0  : yawed arm clearance 자세, deep squat 유지
+# 8.0  : hip만 15 deg 먼저 복귀 (pre-rise)
+# 8.4  : 같은 hip-back 자세 HOLD
+# 9.0  : knee/ankle 30%, hip 28 deg 누적 복귀
+# 9.8  : knee/ankle 65%, hip 40 deg 누적 복귀
+# 10.6 : knee/ankle 85%, hip 43.5 deg 누적 복귀
+# 11.2 : 다리는 READY, arm은 yawed/20 deg elbow 상태 유지
+# 11.8 : 선 상태에서 arm base yaw / wrist roll만 복귀
+# 12.4 : 마지막으로 elbow까지 HARDWARE_READY 복귀
 #
-# publisher의 rise_time_scale > 1.0을 사용하면 8.0 이후 구간만
-# 추가로 느리게 재생된다.
+# publisher의 rise_time_scale > 1.0을 사용하면 7.0 이후 구간만
+# 추가로 느리게 재생된다. 따라서 hip-back 동작부터 천천히 수행한다.
 # ============================================================
 
 REVERT_SEQUENCE = (
@@ -538,11 +612,21 @@ REVERT_SEQUENCE = (
     with_wrist_pitch_down_and_roll_yawed(FOLDED_SUPPORTED),
     DEEP_SQUAT_CLAW_PITCH_DOWN,
     REVERT_YAWED_SHOULDER_READY,
-    REVERT_AFTER_YAW_SHOULDER_READY,
-    REVERT_AFTER_YAW_HIP_BACK,
+
+    # 먼저 hip으로 뒤쪽 bias를 만든다.
+    REVERT_YAWED_HIP_BACK,
+
+    # 같은 자세를 유지해 hip 이동의 운동량을 죽인다.
+    REVERT_HIP_BACK_HOLD,
+
+    # 팔은 완전히 고정한 채 다리만 일어난다.
     REVERT_RISE_EARLY,
     REVERT_RISE_MID,
     REVERT_RISE_LATE,
+    STANDING_ARM_HELD,
+
+    # 완전히 선 다음 arm을 두 단계로 천천히 READY에 복귀한다.
+    STANDING_ARM_BASE_RETURNED,
     HARDWARE_READY,
 )
 
@@ -556,11 +640,13 @@ REVERT_POINT_TIME_FACTORS = (
     6.0,
     7.0,
     8.0,
-    8.5,
+    8.4,
     9.0,
-    9.6,
-    10.2,
-    10.7,
+    9.8,
+    10.6,
+    11.2,
+    11.8,
+    12.4,
 )
 
 

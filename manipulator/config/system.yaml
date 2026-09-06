@@ -1,0 +1,141 @@
+topics:
+  joint_states: /joint_states
+  hardware_trajectory: /joint_trajectory_controller/joint_trajectory
+  wheel_command: /wheel_velocity_controller/commands
+  leader_trajectory: /leader/joint_trajectory
+  teleop_target: /manipulator/teleop_target
+  inference_target: /manipulator/inference_target
+  mode_request: /manipulator/mode/request
+  mode_state: /manipulator/mode/state
+  record_command: /manipulator/record/command
+  record_state: /manipulator/record/state
+  inference_model_command: /manipulator/inference/model
+  inference_model_state: /manipulator/inference/model_state
+  camera_compressed: /camera1/image_raw/compressed
+
+devices:
+  lower_body: /dev/opencr
+  leader: /dev/serial/by-id/usb-ROBOTIS_OpenRB-150_AF46F26750323952582E3120FF070E1E-if00
+
+hardware:
+  # 설치 overlay를 거치지 않고 현재 biped 소스와 설정을 직접 사용한다.
+  lower_bridge_script: /home/dongwoo/biped_bike_ws/src/biped_bike_robot/scripts/dxl_joint_state_bridge.py
+  lower_config: /home/dongwoo/biped_bike_ws/src/biped_bike_robot/config/dynamixel_hardware.yaml
+
+leader_reader:
+  baudrate: 1000000
+  motor_ids: [21, 22, 23, 24, 25, 26]
+  center_ticks: [2048, 2048, 2048, 2048, 2048, 2048]
+  # 초기 정렬이 절대 offset을 제거하므로 여기서는 장착 방향만 보정한다.
+  # ID 26은 기록 데이터에서 열림 방향의 값이 증가한다.
+  direction: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  publish_rate_hz: 30.0
+
+gripper_motor:
+  id: 20
+  joint_name: arm_gripper_jnt
+  model: XL330-M288-T
+  joint_type: revolute
+  control_mode: position
+  # 다른 팔 관절과 동일한 일반 Position Control Mode.
+  operating_mode: 3
+  # 실측 닫힘 끝점 2061에서 약 0.5 deg 여유를 둔다.
+  center_tick: 2055
+  direction: -1
+  # 실측 위치가 안전 명령 범위를 약간 벗어나 있어도 ready 궤적으로
+  # 복귀할 수 있게 하드웨어 허용 범위만 조금 넓게 둔다.
+  min_position_rad: -0.02
+  max_position_rad: 1.23
+  max_abs_position_rad: 1.23
+  pwm_limit: 885
+  direction_checked: true
+  active: true
+
+postures:
+  # 숫자를 복사하지 않고 기존 변신/복귀 코드의 검증된 자세를 직접 읽는다.
+  source: /home/dongwoo/biped_bike_ws/src/biped_bike_robot/scripts/bike_transform_sequence.py
+  joint_names_symbol: JOINT_NAMES
+  ready_symbol: HARDWARE_READY
+  kneeling_symbol: DEEP_SQUAT_ARMS_UP
+  # 기존 변신 시퀀스에는 gripper 축이 없으므로 중립값만 여기서 확장한다.
+  extra_ready: {arm_gripper_jnt: 0.0}
+  extra_kneeling: {arm_gripper_jnt: 0.0}
+
+lower_body:
+  # TRANSFORM_SEQUENCE 첫 자세(DEEP_SQUAT_ARMS_UP)의 하체 12축과 동일하다.
+  joint_names:
+    - l_hip_yaw_jnt
+    - l_hip_roll_jnt
+    - l_hip_pitch_jnt
+    - l_knee_pitch_jnt
+    - l_ankle_pitch_jnt
+    - l_foot_roll_jnt
+    - r_hip_yaw_jnt
+    - r_hip_roll_jnt
+    - r_hip_pitch_jnt
+    - r_knee_pitch_jnt
+    - r_ankle_pitch_jnt
+    - r_foot_roll_jnt
+  move_duration_sec: 4.0
+  settle_time_sec: 0.5
+  position_tolerance_rad: 0.12
+  transition_timeout_sec: 15.0
+  active_drift_tolerance_rad: 0.18
+  active_drift_fault_sec: 0.75
+  joint_state_timeout_sec: 0.75
+
+arm:
+  follower_joint_names:
+    - arm_base_yaw_jnt
+    - arm_shoulder_pitch_jnt
+    - arm_elbow_pitch_jnt
+    - arm_wrist_pitch_jnt
+    - arm_wrist_roll_jnt
+    - arm_gripper_jnt
+  leader_joint_names: [joint1, joint2, joint3, joint4, joint5, gripper_joint_1]
+  # 실제 장착 방향 확인 뒤 direction/offset/limit만 조정하면 된다.
+  direction: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  # 리더 gripper의 더 큰 회전 범위를 팔로워의 안전 개폐 범위로 축소한다.
+  scale: [1.0, 1.0, 1.0, 1.0, 1.0, 0.72]
+  offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  min_position: [-3.14159, -1.91986, -2.0944, -1.5708, -3.14159, 0.0]
+  max_position: [ 3.14159,  1.91986,  2.0944,  0.0,     3.14159, 1.22]
+  align_on_enable: true
+  # 스트리밍 브리지는 상태를 GroupSyncRead로 읽으므로 30 Hz teleop이 가능하다.
+  publish_rate_hz: 30.0
+  source_timeout_sec: 0.30
+  max_velocity_rad_s: 2.0
+  command_duration_sec: 0.033333
+  reset_tolerance_rad: 0.10
+  reset_settle_sec: 0.50
+
+camera:
+  device: /dev/video4
+  width: 1280
+  height: 720
+  fps: 30.0
+  pixel_format: mjpeg2rgb
+
+recording:
+  data_root: data/datasets
+  default_fps: 20.0
+  default_warmup_sec: 3.0
+  default_episode_sec: 20.0
+  default_reset_sec: 5.0
+  default_num_episodes: 5
+  sample_timeout_sec: 0.5
+  max_sync_skew_sec: 0.05
+  sync_queue_size: 120
+
+training:
+  model_root: data/models
+  python: .venv-training/bin/python
+  image_width: 160
+  image_height: 120
+  default_epochs: 30
+  default_batch_size: 32
+  default_learning_rate: 0.0003
+
+web:
+  host: 0.0.0.0
+  port: 8000

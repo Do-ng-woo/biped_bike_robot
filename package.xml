@@ -27,6 +27,7 @@
   <exec_depend>trajectory_msgs</exec_depend>
   <exec_depend>builtin_interfaces</exec_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>dynamixel_sdk</exec_depend>
   <exec_depend>python3-yaml</exec_depend>

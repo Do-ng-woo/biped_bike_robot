@@ -167,6 +167,8 @@ base_link (골반/허리 프레임)
 biped_bike_robot/
 ├── CMakeLists.txt
 ├── package.xml
+├── RL_walking/                 ← 독립형 NumPy RL 보행 + OpenCR 브리지
+├── manipulator/                ← 리더/팔로워/카메라/지도학습 웹 스택
 ├── README.md                    ← 이 문서
 ├── config/
 │   ├── controllers.yaml         ← ros2_control 컨트롤러 설정
@@ -221,6 +223,24 @@ biped_bike_robot/
     ├── urdf/biped_bike_robot_print_ver6.urdf
     └── meshes/
 ```
+
+## 🌐 통합 웹 제어
+
+ROS 2 Jazzy 환경에서 소스 패키지의 통합 웹 패널을 실행합니다.
+
+```bash
+python3 scripts/web_control.py
+```
+
+다른 PC에서는 `http://로봇_IP:8080`으로 접속합니다. 첫 화면의 **RL
+Walking**은 패키지 내부 `RL_walking/models/model_90000.npz`를 사용하며,
+W/↑ 전진, A/←·D/→ 횡이동, Q/E 회전, Space 정지로 동작합니다. 키를
+놓으면 dead-man 타임아웃으로 정지 명령이 전송됩니다.
+
+상단 **Manipulator** 링크는 별도 페이지를 열고, OpenCR 하체/팔로워,
+OpenRB 리더, USB 카메라와 매니퓰레이터 UI를 한 번에 시작합니다.
+RL 보행, 기존 하드웨어 브리지, 매니퓰레이터 스택은 같은 OpenCR 포트를
+사용하므로 웹 서버가 세 모드의 동시 실행을 차단합니다.
 
 ---
 

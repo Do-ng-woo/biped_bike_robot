@@ -20,6 +20,21 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(DIRECTORY RL_walking
+  DESTINATION share/${PROJECT_NAME}
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE
+  PATTERN "logs/*.csv" EXCLUDE
+)
+
+install(DIRECTORY manipulator
+  DESTINATION share/${PROJECT_NAME}
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE
+  PATTERN "data" EXCLUDE
+  PATTERN "tests" EXCLUDE
+)
+
 install(PROGRAMS
   scripts/patch_urdf.py
   scripts/ready_posture.py

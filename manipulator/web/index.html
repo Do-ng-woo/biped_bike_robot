@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BIPED OPS · 작업 제어</title>
+  <style>
+    :root {
+      color-scheme: dark; --bg:#0b121a; --panel:#111c28; --panel2:#152332;
+      --line:#26384b; --text:#f3f7fb; --muted:#91a4b8; --cyan:#35c2ff;
+      --blue:#2687ff; --green:#31c48d; --amber:#f5b942; --red:#f05252;
+      font-family:Inter,Pretendard,"Noto Sans KR",system-ui,sans-serif;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); }
+    [hidden] { display:none !important; }
+    header { height:64px; display:flex; align-items:center; justify-content:space-between;
+      padding:0 18px; border-bottom:1px solid var(--line); background:#0d1721; }
+    .header-left { height:100%; display:flex; align-items:center; gap:24px; }
+    .title { display:flex; align-items:center; gap:9px; font-size:19px; font-weight:800; }
+    .title i { width:9px; height:9px; border-radius:50%; background:var(--cyan);
+      box-shadow:0 0 12px var(--cyan); }
+    .pill { display:inline-flex; align-items:center; gap:7px; padding:6px 10px;
+      border-radius:999px; background:#1d2c3b; color:#b9c8d8; font-size:12px; font-weight:800; }
+    .pill::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--amber); }
+    .pill.good::before { background:var(--green); box-shadow:0 0 8px var(--green); }
+    .pill.fault::before { background:var(--red); }
+    nav { height:100%; display:flex; }
+    nav a { min-width:135px; display:grid; place-items:center; border-bottom:3px solid transparent;
+      color:var(--muted); text-decoration:none; font-size:13px; font-weight:800; cursor:pointer; }
+    nav a.active { color:#fff; border-color:var(--blue); background:#142131; }
+    main { padding:12px; display:grid; gap:12px; }
+    .telemetry { display:grid; grid-template-columns:repeat(6,1fr); gap:1px; border:1px solid var(--line); background:var(--line); }
+    .metric { padding:12px 14px; border:0; border-radius:0;
+      background:var(--panel); }
+    .metric span { display:block; color:var(--muted); font-size:12px; margin-bottom:6px; }
+    .metric strong { display:block; overflow:hidden; text-overflow:ellipsis; font-size:15px; }
+    .workspace { display:grid; grid-template-columns:minmax(420px,1.45fr) minmax(310px,1fr); gap:12px; }
+    .panel { border:1px solid var(--line); border-radius:3px; background:var(--panel); overflow:hidden; }
+    .panel-head { height:43px; display:flex; align-items:center; justify-content:space-between;
+      padding:0 13px; border-bottom:1px solid var(--line); }
+    h2 { margin:0; font-size:14px; } h3 { margin:0 0 5px; font-size:14px; }
+    .camera-wrap { position:relative; min-height:390px; background:#03070a; }
+    .camera-wrap img { display:block; width:100%; height:100%; min-height:390px;
+      max-height:56vh; object-fit:contain; }
+    .camera-label { position:absolute; left:11px; top:11px; padding:5px 8px;
+      border-radius:6px; background:rgba(5,12,18,.76); font-size:11px; color:#d8e5f1; }
+    .camera-offline { position:absolute; inset:0; z-index:3; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; padding:24px; text-align:center; background:#090f15; }
+    .camera-offline .icon { width:54px; height:42px; margin-bottom:15px; display:grid;
+      place-items:center; border:2px solid #526474; color:#8ea0b0; font-weight:900; }
+    .camera-offline strong { font-size:18px; letter-spacing:.08em; }
+    .camera-offline p { max-width:390px; margin:8px 0 18px; color:var(--muted); font-size:13px; line-height:1.55; }
+    .flow { padding:13px; display:grid; gap:9px; }
+    .step { display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:10px;
+      min-height:78px; padding:11px; border:1px solid var(--line); border-radius:3px;
+      background:var(--panel2); }
+    .number { width:30px; height:30px; display:grid; place-items:center; border-radius:8px;
+      background:#20364a; color:var(--cyan); font-weight:900; }
+    .step p { margin:0; color:var(--muted); font-size:12px; line-height:1.45; }
+    button { min-height:44px; min-width:100px; border:0; border-radius:3px; padding:0 14px;
+      color:white; background:var(--blue); font-size:13px; font-weight:800; cursor:pointer; }
+    button.safe { background:#16845f; } button.stop { background:#b63c43; }
+    button.ghost { background:#243749; color:#b8c8d8; }
+    button:disabled { opacity:.42; cursor:not-allowed; }
+    .stop-row { display:grid; grid-template-columns:1fr auto; gap:8px; padding:0 13px 13px; }
+    .stop-row button { width:100%; }
+    .mode-control { margin:13px 13px 0; padding:12px; border:1px solid var(--line); background:#0b141e; }
+    .mode-control .caption { display:flex; justify-content:space-between; margin-bottom:9px; color:var(--muted); font-size:12px; }
+    .mode-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    .mode-grid button { min-width:0; }
+    .task-context { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+    .task-context span { padding:8px 10px; color:var(--muted); background:#101c28; font-size:11px; }
+    .task-context b { display:block; margin-top:4px; overflow:hidden; color:#dce7f0; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+    .details { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    details { border:1px solid var(--line); border-radius:3px; background:var(--panel); overflow:hidden; }
+    summary { padding:15px; cursor:pointer; font-weight:800; font-size:14px; }
+    .form-body { padding:0 13px 13px; }
+    label { display:block; color:var(--muted); font-size:11px; margin:8px 0 4px; }
+    input,select { width:100%; height:40px; border:1px solid #365069; border-radius:3px;
+      padding:0 9px; background:#0a131d; color:white; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .button-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+    .status-detail { margin:0; padding:10px 13px; border-top:1px solid var(--line);
+      color:var(--muted); font-size:11px; min-height:34px; }
+    @media(max-width:1100px) { .telemetry{grid-template-columns:repeat(3,1fr)} }
+    @media(max-width:900px) { .telemetry{grid-template-columns:1fr 1fr} nav a{min-width:105px}
+      .workspace,.details{grid-template-columns:1fr} .camera-wrap,.camera-wrap img{min-height:300px} }
+  </style>
+</head>
+<body>
+<!-- Architecture invariant: 1. Kneeling Stable precedes arm teleoperation. -->
+<header>
+  <div class="header-left">
+    <div class="title"><i></i>ACTUATE / BIPED OPS</div>
+    <nav><a onclick="openOperations()">OPERATIONS</a><a class="active">MANIPULATION</a></nav>
+  </div>
+  <span class="pill" id="modePill">상태 확인 중</span>
+</header>
+<main>
+  <section class="telemetry">
+    <div class="metric"><span>현재 모드</span><strong id="modeMetric">확인 중</strong></div>
+    <div class="metric"><span>하체 자세 고정</span><strong id="lowerMetric">대기</strong></div>
+    <div class="metric"><span>최대 자세 오차</span><strong id="poseMetric">-- rad</strong></div>
+    <div class="metric"><span>리더 / OpenRB</span><strong id="leaderMetric">WAITING</strong></div>
+    <div class="metric"><span>팔로워 / OpenCR</span><strong id="followerMetric">WAITING</strong></div>
+    <div class="metric"><span>카메라</span><strong id="cameraMetric">WAITING</strong></div>
+  </section>
+  <div class="workspace">
+    <section class="panel">
+      <div class="panel-head"><h2>작업 카메라</h2><span class="pill" id="cameraPill">CAM 01</span></div>
+      <div class="camera-wrap">
+        <img id="camera" alt="매니퓰레이터 작업 카메라" hidden>
+        <span class="camera-label">LIVE · /camera/image_raw</span>
+        <div class="camera-offline" id="cameraOffline">
+          <div class="icon">CAM</div><strong>CAMERA OFFLINE</strong>
+          <p>카메라 스트림을 기다리는 중입니다. 장치 연결과 ROS 카메라 토픽 상태를 확인하세요.</p>
+          <button class="ghost" type="button" onclick="retryCamera()">상태 다시 확인</button>
+        </div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>운영 순서</h2><span style="color:var(--muted);font-size:11px">단계별 안전 활성화</span></div>
+      <div class="mode-control">
+        <div class="caption"><b>MANIPULATION CONTROL</b><span>LOWER BODY · <b id="lockBadge">NOT LOCKED</b></span></div>
+        <div class="mode-grid"><button id="modeTeleop" onclick="startArmMode('TELEOP')" disabled>TELEOP</button><button id="modeRecord" onclick="startArmMode('RECORD')" disabled>RECORD</button><button class="ghost" onclick="openTraining()">TRAIN</button><button class="ghost" disabled title="추후 정책 실행 연결 예정">INFERENCE</button></div>
+        <div class="task-context"><span>DATASET<b id="datasetMetric">미선택</b></span><span>MODEL<b id="modelSummary">미선택</b></span></div>
+      </div>
+      <div class="flow">
+        <div class="step"><span class="number">1</span><div><h3>무릎 안정 자세</h3><p>변신 시퀀스의 깊은 앉기 자세로 이동하고 하체를 고정합니다.</p></div><button class="safe" id="stabilize_button" onclick="stabilize()">자세 이동</button></div>
+        <div class="step"><span class="number">2</span><div><h3>리더 텔레오퍼레이션</h3><p>OpenRB 리더 관절을 팔로워 매니퓰레이터가 실시간 추종합니다.</p></div><button id="teleop_button" onclick="startArmMode('TELEOP')" disabled>텔레옵 시작</button></div>
+        <div class="step"><span class="number">3</span><div><h3>학습 정책 재생</h3><p>학습된 정책을 선택하고 자율 매니퓰레이션을 실행합니다.</p></div><button class="ghost" disabled title="추후 연결 예정">준비 중</button></div>
+      </div>
+      <div class="stop-row"><button class="stop" onclick="setMode('IDLE')">매니퓰레이터 정지 / IDLE</button><button class="ghost" id="record_mode_button" onclick="startArmMode('RECORD')" disabled>기록 모드</button></div>
+      <p class="status-detail" id="statusDetail">ROS 상태를 기다리는 중입니다.</p>
+    </section>
+  </div>
+  <div class="details">
+    <details><summary>데이터셋 기록</summary><div class="form-body">
+      <label>사용자 ID</label><input id="user" value="dongwoo">
+      <label>데이터셋 이름</label><input id="dataset" value="pick_object">
+      <label>작업 지시문</label><input id="task" value="물체를 집어 올리기">
+      <div class="row"><div><label>FPS</label><input id="fps" type="number" value="20"></div><div><label>에피소드 수</label><input id="episodes" type="number" value="5"></div></div>
+      <div class="row"><div><label>준비 시간(초)</label><input id="warmup" type="number" value="3"></div><div><label>에피소드 시간(초)</label><input id="episode_sec" type="number" value="20"></div></div>
+      <label>리셋 제한 시간(초)</label><input id="reset" type="number" value="5">
+      <div class="button-row"><button class="safe" onclick="prepareRecord()">기록 시작</button><button class="stop" onclick="recordCommand('stop')">정지</button><button class="ghost" onclick="recordCommand('retry')">다시 기록</button><button onclick="recordCommand('next')">다음</button><button class="safe" onclick="recordCommand('finish')">완료</button></div>
+    </div></details>
+    <details id="trainingPanel"><summary>지도학습 및 모델 관리</summary><div class="form-body">
+      <label>학습 데이터셋</label><select id="dataset_select"></select>
+      <label>출력 모델 이름</label><input id="output" value="pick_object_bc">
+      <div class="row"><div><label>Epoch</label><input id="epochs" type="number" value="30"></div><div><label>Batch</label><input id="batch" type="number" value="32"></div></div>
+      <label>학습 장치</label><select id="device"><option>auto</option><option>cuda</option><option>cpu</option></select>
+      <div class="button-row"><button onclick="startTraining()">학습 시작</button><button class="ghost" onclick="refreshLists()">목록 새로고침</button></div>
+      <label>학습된 모델</label><select id="model_select"></select>
+      <div class="button-row"><button onclick="loadModel()">모델 불러오기</button></div>
+      <p class="status-detail">현재 모델: <strong id="modelMetric">미선택</strong></p>
+    </div></details>
+  </div>
+</main>
+<script>
+const byId=id=>document.getElementById(id);
+const modeNames={UNKNOWN:'상태 확인 중',IDLE:'대기',KNEELING:'무릎 자세 이동 중',STABLE:'무릎 안정화 완료',TELEOP:'텔레오퍼레이션',RECORD:'데이터 기록',INFERENCE:'정책 실행',FAULT:'오류'};
+let cameraStreaming=false;
+function openOperations(){window.top.location.href='http://'+window.location.hostname+':8080/'}
+function openTraining(){const panel=byId('trainingPanel');panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'center'})}
+function setConnection(id,online){byId(id).textContent=online?'CONNECTED':'WAITING';byId(id).style.color=online?'var(--green)':'var(--amber)'}
+function setCameraStream(online){
+  const image=byId('camera'), offline=byId('cameraOffline');
+  if(online&&!cameraStreaming){cameraStreaming=true;image.src='/stream.mjpg?ts='+Date.now();image.hidden=false;offline.hidden=true}
+  if(!online){cameraStreaming=false;image.removeAttribute('src');image.hidden=true;offline.hidden=false}
+  byId('cameraPill').className='pill '+(online?'good':'fault');
+}
+function retryCamera(){cameraStreaming=false;refreshStatus()}
+async function post(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error||'요청 실패');return d}
+async function requestMode(mode){return post('/api/mode',{mode})}
+async function setMode(mode){try{await requestMode(mode)}catch(e){alert(e.message)}}
+async function stabilize(){try{await requestMode('STABILIZE');await waitMode('STABLE',20000)}catch(e){alert(e.message)}}
+async function startArmMode(mode){try{const s=await(await fetch('/api/status')).json();if(!['STABLE','TELEOP','RECORD','INFERENCE'].includes(s.mode.mode))throw new Error('먼저 무릎 안정 자세를 완료하세요.');await requestMode(mode);await waitMode(mode,3000);return true}catch(e){alert(e.message);return false}}
+async function waitMode(mode,timeout=12000){const start=Date.now();while(Date.now()-start<timeout){const s=await(await fetch('/api/status')).json();if(s.mode.mode===mode)return;if(s.mode.mode==='FAULT')throw new Error(s.mode.detail||'로봇 모드 오류');await new Promise(r=>setTimeout(r,250))}throw new Error('자세 전환 제한 시간을 초과했습니다.')}
+function recordPayload(command){return{command,user_id:byId('user').value,dataset:byId('dataset').value,task:byId('task').value,fps:+byId('fps').value,num_episodes:+byId('episodes').value,warmup_sec:+byId('warmup').value,episode_sec:+byId('episode_sec').value,reset_sec:+byId('reset').value}}
+async function prepareRecord(){try{if(!await startArmMode('RECORD'))return;await post('/api/record',recordPayload('start'))}catch(e){alert(e.message)}}
+async function recordCommand(command){try{await post('/api/record',recordPayload(command))}catch(e){alert(e.message)}}
+async function startTraining(){try{await post('/api/training/start',{dataset:byId('dataset_select').value,output:byId('output').value,epochs:+byId('epochs').value,batch_size:+byId('batch').value,device:byId('device').value})}catch(e){alert(e.message)}}
+async function loadModel(){try{const reply=await post('/api/inference/model',{model:byId('model_select').value});const start=Date.now();while(Date.now()-start<15000){const s=await(await fetch('/api/status')).json();if(s.model.state==='LOADED'&&s.model.path===reply.model)return reply;if(s.model.state==='ERROR')throw new Error(s.model.detail||'모델 로드 실패');await new Promise(r=>setTimeout(r,200))}throw new Error('모델 로드 응답 시간이 초과되었습니다.')}catch(e){alert(e.message);throw e}}
+async function refreshLists(){try{const ds=await(await fetch('/api/datasets')).json();byId('dataset_select').replaceChildren(...ds.datasets.map(x=>new Option(x,x)));const ms=await(await fetch('/api/models')).json();byId('model_select').replaceChildren(...ms.models.map(x=>new Option(x,x)))}catch(_){}}
+async function refreshStatus(){try{
+  const s=await(await fetch('/api/status',{cache:'no-store'})).json();
+  const mode=s.mode.mode||'UNKNOWN';const stable=['STABLE','TELEOP','RECORD','INFERENCE'].includes(mode);
+  const connections=s.connections||{};const errors=Object.values(s.mode.lower_error_rad||{}).map(Number).filter(Number.isFinite);
+  byId('modeMetric').textContent=modeNames[mode]||mode;byId('modePill').textContent=modeNames[mode]||mode;
+  byId('modePill').className='pill '+(mode==='FAULT'?'fault':stable?'good':'');
+  byId('lowerMetric').textContent=stable?'KNEELING LOCKED':mode==='KNEELING'?'이동 중':'NOT LOCKED';
+  byId('lockBadge').textContent=stable?'KNEELING LOCKED':mode==='KNEELING'?'MOVING':'NOT LOCKED';
+  byId('lockBadge').style.color=stable?'var(--green)':'var(--amber)';
+  byId('poseMetric').textContent=errors.length?Math.max(...errors).toFixed(3)+' rad':'-- rad';
+  setConnection('leaderMetric',!!connections.leader);setConnection('followerMetric',!!connections.follower);
+  byId('cameraMetric').textContent=connections.camera?'STREAMING':'OFFLINE';setCameraStream(!!connections.camera);
+  const modelName=s.model.state==='LOADED'?(s.model.path||'불러옴'):'미선택';
+  byId('modelMetric').textContent=modelName;byId('modelSummary').textContent=modelName;
+  byId('datasetMetric').textContent=s.record.dataset||s.record.dataset_name||'미선택';
+  byId('statusDetail').textContent=s.mode.detail||'상태 정보 없음';
+  byId('stabilize_button').disabled=mode==='KNEELING';byId('teleop_button').disabled=!stable;
+  byId('record_mode_button').disabled=!stable;byId('modeTeleop').disabled=!stable;byId('modeRecord').disabled=!stable;
+}catch(e){byId('statusDetail').textContent='상태 서버 연결 대기: '+e.message;setCameraStream(false);setConnection('leaderMetric',false);setConnection('followerMetric',false)}}
+byId('camera').addEventListener('error',()=>{cameraStreaming=false;setCameraStream(false)});
+refreshLists();refreshStatus();setInterval(refreshStatus,500);setInterval(refreshLists,5000);
+</script>
+</body>
+</html>
